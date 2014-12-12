@@ -32,8 +32,8 @@
           { :id "dev"
             :source-paths  ["src"]
             :compiler {
-              :output-to     "web/todo.js"
-              :output-dir    "web/out"
+              :output-to     "dev/todo.js"
+              :output-dir    "dev/out"
               :optimizations :none
               :source-map    true
             }}
