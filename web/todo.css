@@ -1,0 +1,53 @@
+* { box-sizing: border-box; vertical-align: top; text-rendering: optimizelegibility; }
+tr, td, table, tbody { padding: 0; margin: 0; border-collapse: collapse; }
+
+@font-face { font-family: 'InputSansNarrow'; src: url('InputSansNarrow-Regular.ttf'); }
+
+html, input, textarea, button { font: 13px/20px 'InputSansNarrow', sans-serif; }
+html, body { width: 100%; height: 100%; margin: 0; padding: 0;  }
+body { background: linear-gradient(to bottom, hsl(185, 45%, 63%) 0%, hsl(185, 45%, 58%) 100%);}
+
+input[type=text] { border: none; border-bottom: 2px solid #cfcfcf; background: transparent; }
+input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
+
+.canvas { width: 1100px; margin: 40px auto; }
+.main-view { width: 600px; }
+.edit-view  { width: 400px; margin-left: 40px; }
+.main-view, .edit-view { background: linear-gradient(to bottom, #fffffc 0%, #fafaf4 100%); border-radius: 9px; display: inline-block; box-shadow: 0 3px 10px hsla(0,0%,50%,0.9); border: 4px solid #f9bf3b; border-color: hsl(4, 74%, 65%); }
+
+.filter { font-size: 20px; line-height: 30px; width: 560px; margin: 20px auto; display: block; }
+
+.overview-pane { width: 200px; padding: 0 0 10px; }
+.group { margin: 0 0 20px 0; }
+.group-title, .group-item { padding: 4px 20px 0px; line-height: 20px; margin: -2px 0; }
+.group-title { text-transform: uppercase; color: #9f9f9f; margin-bottom: 0px; }
+.group-item-count { float: right; display: inline-block; padding: 2px 6px 0px; border-radius: 16px; font-size: 10px; line-height: 16px; border: none; position: relative; top: -1px; }
+.group-item > span:first-child { cursor: pointer; }
+
+.group-item_empty { color: #bbb; }
+.group-item-count, .group-item_selected > span:first-child, button { background: linear-gradient(to bottom, hsl(4, 74%, 70%) 0%, hsl(4, 74%, 65%) 100%); color: white; }
+.group-item_selected > span:first-child { padding: 6px 7px 4px 6px; margin: -6px -7px -4px -6px; border-radius: 3px; }
+
+
+.todo-pane { width: 400px; padding: 4px 0 0 20px; }
+.todo { margin: 0 0 20px 0; }
+.todo-text { font-size: 20px; margin-left: 26px; }
+.todo-subtext { font-size: 10px; margin-left: 26px; }
+.todo-subtext > span + span:before { content: "·"; margin: 0 3px; }
+
+.todo-checkbox { width: 18px; height: 18px; border: 2px solid #f9bf3b; border-radius: 4px; float: left; font-size: 20px; line-height: 14px; padding: 0 0 0 2px; cursor: pointer; border-color: hsl(4, 74%, 65%); }
+.todo-checkbox { color: transparent; }
+.todo-checkbox:hover { background: hsl(4, 74%, 80%); }
+.todo_done > .todo-checkbox { color: #ccc; background: hsl(4, 74%, 94%); border-color: hsl(4, 74%, 94%); }
+.todo_done > .todo-checkbox:hover { background: hsl(4, 74%, 97%); }
+.todo_done { color: #bbb; }
+
+.edit-view { padding: 0 20px 20px; }
+.edit-view > input { width: 340px; margin: 20px 0; display: block;  }
+.edit-view > input:focus { outline: none; border-color: hsl(4, 74%, 65%); }
+.edit-text { font-size: 20px; line-height: 30px; } 
+.edit-view > .edit-due  { width: 90px; }
+
+.edit-submit:focus { outline: none; }
+.edit-submit { border: none; border-radius: 4px; padding: 6px 12px 2px; cursor: pointer; }
+.edit-submit:active { box-shadow: 0 2px 4px hsla(0,0%,0%,0.2) inset; position: relative; top: 1px; }

@@ -8,9 +8,79 @@
 
 (r/defc canvas [db]
   (s/html
-    [:ul#canvas
-      (for [{:keys [e a v tx]} (d/datoms db :eavt)]
-        [:li "[" e " " (pr-str a) " " (pr-str v) " " tx "]"])]))
+    [:.canvas
+      [:table.main-view
+        [:tr
+          [:td.filter-pane {:colSpan 2}
+           [:input.filter
+             {:type "text"
+              :placeholder "Filter"}]
+           ]]
+        [:tr
+          [:td.overview-pane
+            [:.group
+              [:.group-item  [:span "Inbox"] [:span.group-item-count 10]]]
+            [:.group
+              [:.group-title "Plan"]
+              [:.group-item.group-item_selected [:span "Today"] [:span.group-item-count 5]]
+              [:.group-item.group-item_empty  [:span "Tomorrow"]]
+              [:.group-item.group-item_empty  [:span "This week"]]
+              [:.group-item  [:span "December 2014"] [:span.group-item-count 774]]
+              [:.group-item.group-item_empty  [:span "January 2014"]]]
+            [:.group
+              [:.group-title "Projects"]
+              [:.group-item  [:span "DataScript"]]
+              [:.group-item  [:span "ClojureX talk"]]
+              [:.group-item  [:span "Clojure NYC webinar"]]]
+            [:.group
+              [:.group-title "Contexts"]
+              [:.group-item  [:span "Home"]]
+              [:.group-item  [:span "Office"]]
+              [:.group-item  [:span "Shopping"]]]
+            [:.group
+              [:.group-item  [:span "Archive"]]]
+          ]
+          [:td.todo-pane
+            [:.todo.todo_done
+              [:.todo-checkbox "✔︎"]
+              [:.todo-text
+                "Create github repo"]
+              [:.todo-subtext
+                [:span "Dec 12th"]
+                [:span "Clojure NYC webinar"]
+                [:span "Home"]]]
+            [:.todo.todo_done
+              [:.todo-checkbox "✔︎"]
+              [:.todo-text "Buy soap"]
+              [:.todo-subtext
+                [:span "Shopping"]]]
+            [:.todo
+              [:.todo-checkbox "✔︎"]
+              [:.todo-text "Finish app mockup"]
+              [:.todo-subtext
+                [:span "Dec 12"]
+                [:span "Clojure NYC webinar"]
+                [:span "Home"]]]
+            [:.todo
+              [:.todo-checkbox "✔︎"]
+              [:.todo-text "Make a webinar plan"]]
+            [:.todo
+              [:.todo-checkbox "✔︎"]
+              [:.todo-text "Send plan to Dennis"]]
+          ]]]
+      [:.edit-view
+        [:input.edit-text {:type "text"
+                           :placeholder "New task"}]
+        [:input.edit-project {:type "text"
+                              :placeholder "Project"}]
+        [:input.edit-context {:type "text"
+                              :placeholder "Context"}]
+        [:input.edit-tags {:type "text"
+                           :placeholder "Tags"}]
+        [:input.edit-due  {:type "text"
+                           :placeholder "Due date"}]
+        [:button.edit-submit "Add task"]
+       ]]))
 
 (defn ^:export start! []
   (let [schema {}
@@ -19,6 +89,4 @@
     (d/listen! conn (fn [tx-report]
                       (r/render (canvas (:db-after tx-report))
                                 (.-body js/document))))
-    ;; some initial data
-    (d/transact! conn [[:db/add -1 :todo/text "Something"]
-                       [:db/add -2 :todo/text "Something else"]])))
+    (d/transact! conn [])))
