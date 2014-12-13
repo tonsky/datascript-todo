@@ -22,7 +22,15 @@
 (r/defc overview-pane [db]
   [:.overview-pane
     [:.group
-      [:.group-item  [:span "Inbox"] [:span.group-item-count 10]]]
+      (let [query (d/q '[:find (count ?todo) ;; TODO check DS behaviour on empty rels
+                         :where [?todo :todo/text _]
+                                [?todo :todo/done false]
+                                [(get-else $ ?todo :todo/project :none) ?project]
+                                [(get-else $ ?todo :todo/due :none) ?due]
+                                [(= ?project :none)]
+                                [(= ?due :none)]]
+                       db)]
+        [:.group-item  [:span "Inbox"] [:span.group-item-count (ffirst query)]])]
     [:.group
       [:.group-title "Plan"]
       [:.group-item.group-item_selected [:span "Today"] [:span.group-item-count 5]]
