@@ -38,11 +38,10 @@
     [:.group
       [:.group-item  [:span "Archive"]]]])
 
+
+
 (defn toggle-todo-tx [db eid]
-  (let [done? (->> (d/q '[:find ?done
-                          :in $ ?e
-                          :where [?e :todo/done ?done]] db eid)
-                   ffirst)]
+  (let [done? (u/v-by-ea db eid :todo/done)]
     [[:db/add eid :todo/done (not done?)]]))
 
 (defn toggle-todo [eid]
@@ -80,10 +79,7 @@
 (defn add-todo []
   (when-let [todo (extract-todo)]
     (let [project    (:project todo)
-          project-id (ffirst (d/q '[:find ?e
-                                    :in $ ?p
-                                    :where [?e :project/name ?p]]
-                                  @conn project))
+          project-id (when project (u/e-by-av @conn :project/name project))
           project-tx (when (and project (nil? project-id))
                        [[:db/add -1 :project/name project]])
           entity (->> {:todo/text (:text todo)
