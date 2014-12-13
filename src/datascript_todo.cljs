@@ -19,55 +19,68 @@
     [:input.filter {:type "text"
                     :placeholder "Filter"}]])
 
+(r/defc inbox-group [db]
+  [:.group
+    (let [count (->> (d/q '[:find (count ?todo) ;; TODO check DS behaviour on empty rels
+                            :where [?todo :todo/text _]
+                                   [?todo :todo/done false]
+                                   [(get-else $ ?todo :todo/project :none) ?project]
+                                   [(get-else $ ?todo :todo/due :none) ?due]
+                                   [(= ?project :none)]
+                                   [(= ?due :none)]]
+                           db)
+                     ffirst)]
+      [:.group-item 
+        [:span "Inbox"]
+        (when count
+          [:span.group-item-count count])])])
+
+(r/defc plan-group [db]
+  [:.group
+    [:.group-title "Plan"]
+    (for [[[year month] count] (->> (d/q '[:find ?month (count ?todo)
+                                           :in   $ ?date->month
+                                           :where [?todo :todo/due ?date]
+                                                  [?todo :todo/done false]
+                                                  [(?date->month ?date) ?month]]
+                                  db u/date->month)
+                             (sort-by first))]
+      [:.group-item
+        [:span (u/format-month month year)]
+        [:span.group-item-count count]])])
+
+(r/defc projects-group [db]
+  [:.group
+    [:.group-title "Projects"]
+    (for [[name count] (->> (d/q '[:find ?name (count ?todo)
+                                   :with ?p
+                                   :where [?p :project/name ?name]
+                                          [?todo :todo/project ?p]
+                                          [?todo :todo/done false]]
+                                 db)
+                            (sort-by first))]
+      [:.group-item
+        [:span name]
+        [:span.group-item-count count]])])
+
+(r/defc archive-group [db]
+  [:.group
+    (let [count (->> (d/q '[:find (count ?todo)
+                            :where [?todo :todo/text _]
+                                   [?todo :todo/done true]]
+                          db)
+                     ffirst)]
+      [:.group-item
+        [:span "Archive"]
+        (when count
+          [:span.group-item-count count])])])
 
 (r/defc overview-pane [db]
   [:.overview-pane
-    [:.group
-      (let [query (d/q '[:find (count ?todo) ;; TODO check DS behaviour on empty rels
-                         :where [?todo :todo/text _]
-                                [?todo :todo/done false]
-                                [(get-else $ ?todo :todo/project :none) ?project]
-                                [(get-else $ ?todo :todo/due :none) ?due]
-                                [(= ?project :none)]
-                                [(= ?due :none)]]
-                       db)]
-        [:.group-item  [:span "Inbox"] [:span.group-item-count (ffirst query)]])]
-    [:.group
-      [:.group-title "Plan"]
-      (for [[[year month] count] (->> (d/q '[:find ?month (count ?todo)
-                                             :in   $ ?date->month
-                                             :where [?todo :todo/due ?date]
-                                                    [?todo :todo/done false]
-                                                    [(?date->month ?date) ?month]]
-                                    db u/date->month)
-                               (sort-by first))]
-        [:.group-item
-          [:span (u/format-month month year)]
-          [:span.group-item-count count]])]
-    [:.group
-      [:.group-title "Projects"]
-      (for [[name count] (->> (d/q '[:find ?name (count ?todo)
-                                     :with ?p
-                                     :where [?p :project/name ?name]
-                                            [?todo :todo/project ?p]
-                                            [?todo :todo/done false]]
-                                   db)
-                              (sort-by first))]
-        [:.group-item
-          [:span name]
-          [:span.group-item-count count]])]
-    [:.group
-      (let [count (->> (d/q '[:find (count ?todo)
-                              :where [?todo :todo/text _]
-                                     [?todo :todo/done true]]
-                            db)
-                       ffirst)]
-        [:.group-item
-          [:span "Archive"]
-          (when count
-            [:span.group-item-count count])])]])
-
-
+    (inbox-group db)
+    (plan-group  db)
+    (projects-group db)
+    (archive-group db)])
 
 (defn toggle-todo-tx [db eid]
   (let [done? (u/v-by-ea db eid :todo/done)]
@@ -157,10 +170,9 @@
     (js/localStorage.setItem "datascript/db" (pr-str (:db-after tx-report)))))
 
 ;; restoring once persisted DB on page load
+(cljs.reader/register-tag-parser! "datascript/DB" d/db-from-reader)
 (when-let [stored (js/localStorage.getItem "datascript/db")]
-  (binding [cljs.reader/*tag-table* (atom (merge @cljs.reader/*tag-table*
-                                                 {"datascript/DB" d/db-from-reader}))]
-    (reset! conn (cljs.reader/read-string stored))))
+  (reset! conn (cljs.reader/read-string stored)))
 
 #_(js/localStorage.clear)
 
