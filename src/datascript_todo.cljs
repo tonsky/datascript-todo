@@ -19,6 +19,7 @@
     [:input.filter {:type "text"
                     :placeholder "Filter"}]])
 
+
 (r/defc overview-pane [db]
   [:.overview-pane
     [:.group
@@ -33,11 +34,16 @@
         [:.group-item  [:span "Inbox"] [:span.group-item-count (ffirst query)]])]
     [:.group
       [:.group-title "Plan"]
-      [:.group-item.group-item_selected [:span "Today"] [:span.group-item-count 5]]
-      [:.group-item.group-item_empty  [:span "Tomorrow"]]
-      [:.group-item.group-item_empty  [:span "This week"]]
-      [:.group-item  [:span "December 2014"] [:span.group-item-count 774]]
-      [:.group-item.group-item_empty  [:span "January 2014"]]]
+      (for [[[year month] count] (->> (d/q '[:find ?month (count ?todo)
+                                             :in   $ ?date->month
+                                             :where [?todo :todo/due ?date]
+                                                    [?todo :todo/done false]
+                                                    [(?date->month ?date) ?month]]
+                                    db u/date->month)
+                               (sort-by first))]
+        [:.group-item
+          [:span (u/format-month month year)]
+          [:span.group-item-count count]])]
     [:.group
       [:.group-title "Projects"]
       (for [[name count] (->> (d/q '[:find ?name (count ?todo)
@@ -152,7 +158,8 @@
 
 ;; restoring once persisted DB on page load
 (when-let [stored (js/localStorage.getItem "datascript/db")]
-  (binding [cljs.reader/*tag-table* (atom {"datascript/DB" d/db-from-reader})]
+  (binding [cljs.reader/*tag-table* (atom (merge @cljs.reader/*tag-table*
+                                                 {"datascript/DB" d/db-from-reader}))]
     (reset! conn (cljs.reader/read-string stored))))
 
 #_(js/localStorage.clear)

@@ -10,3 +10,11 @@
 
 (defn v-by-ea [db e a]
   (-> (d/datoms db :eavt e a) first :v))
+
+(defn date->month [date]
+  [(.getFullYear date)
+   (inc (.getMonth date))])
+
+(defn format-month [month year]
+  (str (get ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"] (dec month))
+       " " (rem year 100)))
