@@ -59,6 +59,8 @@
         [:.todo-subtext
           (when-let [due (:todo/due td)]
             [:span (.toDateString due)])
+          (when-let [project (:todo/project td)]
+            [:span (:project/name project)])
           (for [tag (:todo/tags td)]
             [:span tag])]])])
 
@@ -77,13 +79,20 @@
 
 (defn add-todo []
   (when-let [todo (extract-todo)]
-    (let [entity (->> {:todo/text (:text todo)
+    (let [project    (:project todo)
+          project-id (ffirst (d/q '[:find ?e
+                                    :in $ ?p
+                                    :where [?e :project/name ?p]]
+                                  @conn project))
+          project-tx (when (and project (nil? project-id))
+                       [[:db/add -1 :project/name project]])
+          entity (->> {:todo/text (:text todo)
                        :todo/done false
-                       :todo/project nil ;; TODO
+                       :todo/project (when project (or project-id -1)) 
                        :todo/due  (:due todo)
                        :todo/tags (:tags todo)}
                       (u/remove-vals nil?))]
-      (d/transact! conn [entity]))
+      (d/transact! conn (concat project-tx [entity])))
     (clean-todo)))
 
 (r/defc add-view []
