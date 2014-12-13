@@ -1,10 +1,15 @@
 (ns datascript-todo
   (:require
+    [clojure.string :as str]
     [datascript :as d]
     [sablono.core]
-    [datascript-todo.react :as r :include-macros true]))
+    [datascript-todo.react :as r :include-macros true]
+    [datascript-todo.dom :as dom]))
 
 (enable-console-print!)
+
+(def schema {})
+(defonce conn (d/create-conn schema))
 
 (r/defc filter-pane []
   [:.filter-pane
@@ -28,11 +33,6 @@
       [:.group-item  [:span "ClojureX talk"]]
       [:.group-item  [:span "Clojure NYC webinar"]]]
     [:.group
-      [:.group-title "Contexts"]
-      [:.group-item  [:span "Home"]]
-      [:.group-item  [:span "Office"]]
-      [:.group-item  [:span "Shopping"]]]
-    [:.group
       [:.group-item  [:span "Archive"]]]])
 
 (r/defc todo-pane []
@@ -43,20 +43,16 @@
         "Create github repo"]
       [:.todo-subtext
         [:span "Dec 12th"]
-        [:span "Clojure NYC webinar"]
-        [:span "Home"]]]
+        [:span "Clojure NYC webinar"]]]
     [:.todo.todo_done
       [:.todo-checkbox "✔︎"]
-      [:.todo-text "Buy soap"]
-      [:.todo-subtext
-        [:span "Shopping"]]]
+      [:.todo-text "Buy soap"]]
     [:.todo
       [:.todo-checkbox "✔︎"]
       [:.todo-text "Finish app mockup"]
       [:.todo-subtext
         [:span "Dec 12"]
-        [:span "Clojure NYC webinar"]
-        [:span "Home"]]]
+        [:span "Clojure NYC webinar"]]]
     [:.todo
       [:.todo-checkbox "✔︎"]
       [:.todo-text "Make a webinar plan"]]
@@ -64,19 +60,20 @@
       [:.todo-checkbox "✔︎"]
       [:.todo-text "Send plan to Dennis"]]])
 
+(defn extract-todo []
+  (when-let [text (dom/value (dom/q ".add-text"))]
+    {:text    text
+     :project (dom/value (dom/q ".add-project"))
+     :due     (dom/date-value  (dom/q ".add-due"))
+     :tags    (dom/array-value (dom/q ".add-tags"))}))
+
 (r/defc add-view []
-  [:.add-view
-    [:input.add-text {:type "text"
-                       :placeholder "New task"}]
-    [:input.add-project {:type "text"
-                          :placeholder "Project"}]
-    [:input.add-context {:type "text"
-                          :placeholder "Context"}]
-    [:input.add-tags {:type "text"
-                       :placeholder "Tags"}]
-    [:input.add-due  {:type "text"
-                       :placeholder "Due date"}]
-    [:button.add-submit "Add task"]])
+  [:form.add-view {:on-submit (constantly false)}
+    [:input.add-text    {:type "text" :placeholder "New task"}]
+    [:input.add-project {:type "text" :placeholder "Project"}]
+    [:input.add-tags    {:type "text" :placeholder "Tags"}]
+    [:input.add-due     {:type "text" :placeholder "Due date"}]
+    [:input.add-submit  {:type "submit" :value "Add task"}]])
 
 (r/defc canvas [db]
   [:.canvas
@@ -86,8 +83,6 @@
       (todo-pane)]
     (add-view)])
 
-(def schema {})
-(defonce conn (d/create-conn schema))
 
 (defn render
   ([] (render @conn))

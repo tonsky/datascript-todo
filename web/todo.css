@@ -27,7 +27,7 @@ input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
 .group-item > span:first-child { cursor: pointer; }
 
 .group-item_empty { color: #bbb; }
-.group-item-count, .group-item_selected > span:first-child, button { background: linear-gradient(to bottom, hsl(4, 74%, 70%) 0%, hsl(4, 74%, 65%) 100%); color: white; }
+.group-item-count, .group-item_selected > span:first-child, button, input[type=submit] { background: linear-gradient(to bottom, hsl(4, 74%, 70%) 0%, hsl(4, 74%, 65%) 100%); color: white; }
 .group-item_selected > span:first-child { padding: 6px 7px 4px 6px; margin: -6px -7px -4px -6px; border-radius: 3px; }
 
 .todo-pane { padding: 4px 0 0 20px; }
@@ -44,11 +44,11 @@ input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
 .todo_done { color: #bbb; }
 
 .add-view { padding: 0 20px 20px; }
-.add-view > input { width: 340px; margin: 20px 0; display: block;  }
-.add-view > input:focus { outline: none; border-color: hsl(4, 74%, 65%); }
+.add-view > input[type=text] { width: 340px; margin: 20px 0; display: block;  }
+.add-view > input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
 .add-text { font-size: 20px; line-height: 30px; } 
-.add-view > .add-due  { width: 90px; }
+.add-view > .add-due  { width: 101px; }
 
-.add-submit:focus { outline: none; }
 .add-submit { border: none; border-radius: 4px; padding: 6px 12px 2px; cursor: pointer; }
+.add-submit:focus { outline: none; }
 .add-submit:active { box-shadow: 0 2px 4px hsla(0,0%,0%,0.2) inset; position: relative; top: 1px; }
