@@ -14,14 +14,18 @@
              :todo/project {:db/valueType :db.type/ref}})
 (defonce conn (d/create-conn schema))
 
+(defn set-system-attrs! [& args]
+  (d/transact! conn 
+    (for [[attr value] (partition 2 args)]
+      (if value
+        [:db/add 0 attr value]
+        [:db.fn/retractAttribute 0 attr]))))
+
 (r/defc filter-pane []
   [:.filter-pane
     [:input.filter {:type "text"
                     :on-change (fn [_]
-                                 (d/transact! conn 
-                                   (if-let [value (dom/value (dom/q ".filter"))]
-                                     [[:db/add 0 :system/filter value]]
-                                     [[:db.fn/retractAttribute 0 :system/filter]])))
+                                 (set-system-attrs! :system/filter (dom/value (dom/q ".filter"))))
                     :placeholder "Filter"}]])
 
 (r/defc inbox-group [db]
@@ -35,8 +39,11 @@
                                    [(= ?due :none)]]
                            db)
                      ffirst)]
-      [:.group-item 
-        [:span "Inbox"]
+      [:.group-item {:class (when (= :inbox (u/v-by-ea db 0 :system/group)) "group-item_selected")}
+        [:span {:on-click (fn [_]
+                            (set-system-attrs! :system/group :inbox
+                                               :system/group-item nil)) }
+          "Inbox"]
         (when count
           [:span.group-item-count count])])])
 
@@ -50,22 +57,31 @@
                                                   [(?date->month ?date) ?month]]
                                   db u/date->month)
                              (sort-by first))]
-      [:.group-item
-        [:span (u/format-month month year)]
+      [:.group-item {:class (when (and (= :month (u/v-by-ea db 0 :system/group))
+                                       (= [year month] (u/v-by-ea db 0 :system/group-item)))
+                              "group-item_selected")}
+        [:span {:on-click (fn [_]
+                            (set-system-attrs! :system/group :month
+                                               :system/group-item [year month]))}
+          (u/format-month month year)]
         [:span.group-item-count count]])])
 
 (r/defc projects-group [db]
   [:.group
     [:.group-title "Projects"]
-    (for [[name count] (->> (d/q '[:find ?name (count ?todo)
-                                   :with ?p
-                                   :where [?p :project/name ?name]
-                                          [?todo :todo/project ?p]
-                                          [?todo :todo/done false]]
-                                 db)
-                            (sort-by first))]
-      [:.group-item
-        [:span name]
+    (for [[pid name count] (->> (d/q '[:find ?p ?name (count ?todo)
+                                       :where [?p :project/name ?name]
+                                              [?todo :todo/project ?p]
+                                              [?todo :todo/done false]]
+                                     db)
+                                (sort-by first))]
+      [:.group-item {:class (when (and (= :project (u/v-by-ea db 0 :system/group))
+                                       (= pid (u/v-by-ea db 0 :system/group-item)))
+                              "group-item_selected")}
+        [:span {:on-click (fn [_]
+                            (set-system-attrs! :system/group :project
+                                               :system/group-item pid)) }
+          name]
         [:span.group-item-count count]])])
 
 (r/defc archive-group [db]
@@ -75,8 +91,11 @@
                                    [?todo :todo/done true]]
                           db)
                      ffirst)]
-      [:.group-item
-        [:span "Archive"]
+      [:.group-item {:class (when (= :archive (u/v-by-ea db 0 :system/group)) "group-item_selected")}
+        [:span {:on-click (fn [_]
+                            (set-system-attrs! :system/group :archive
+                                               :system/group-item nil))}
+          "Archive"]
         (when count
           [:span.group-item-count count])])])
 
@@ -191,8 +210,10 @@
 
 ;; persisting DB between page reloads
 (d/listen! conn :persistence
-  (fn [tx-report]
-    (js/localStorage.setItem "datascript/db" (pr-str (:db-after tx-report)))))
+  (fn [tx-report] ;; TODO do not notify with nil as db-report
+                  ;; TODO do not notify if tx-data is empty
+    (when-let [db (:db-after tx-report)]
+      (js/localStorage.setItem "datascript/db" (pr-str db)))))
 
 ;; restoring once persisted DB on page load
 (cljs.reader/register-tag-parser! "datascript/DB" d/db-from-reader)
