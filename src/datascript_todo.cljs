@@ -19,7 +19,7 @@
     [:input.filter {:type "text"
                     :placeholder "Filter"}]])
 
-(r/defc overview-pane []
+(r/defc overview-pane [db]
   [:.overview-pane
     [:.group
       [:.group-item  [:span "Inbox"] [:span.group-item-count 10]]]
@@ -32,9 +32,16 @@
       [:.group-item.group-item_empty  [:span "January 2014"]]]
     [:.group
       [:.group-title "Projects"]
-      [:.group-item  [:span "DataScript"]]
-      [:.group-item  [:span "ClojureX talk"]]
-      [:.group-item  [:span "Clojure NYC webinar"]]]
+      (for [[name count] (->> (d/q '[:find ?name (count ?todo)
+                                     :with ?p
+                                     :where [?p :project/name ?name]
+                                            [?todo :todo/project ?p]
+                                            [?todo :todo/done false]]
+                                   db)
+                              (sort-by first))]
+        [:.group-item
+          [:span name]
+          [:span.group-item-count count]])]
     [:.group
       [:.group-item  [:span "Archive"]]]])
 
@@ -103,7 +110,7 @@
   [:.canvas
     [:.main-view
       (filter-pane)
-      (overview-pane)
+      (overview-pane db)
       (todo-pane db)]
     (add-view)])
 
