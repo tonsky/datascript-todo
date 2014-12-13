@@ -37,30 +37,18 @@
     [:.group
       [:.group-item  [:span "Archive"]]]])
 
-(r/defc todo-pane []
+(r/defc todo-pane [db]
   [:.todo-pane
-    [:.todo.todo_done
-      [:.todo-checkbox "✔︎"]
-      [:.todo-text
-        "Create github repo"]
-      [:.todo-subtext
-        [:span "Dec 12th"]
-        [:span "Clojure NYC webinar"]]]
-    [:.todo.todo_done
-      [:.todo-checkbox "✔︎"]
-      [:.todo-text "Buy soap"]]
-    [:.todo
-      [:.todo-checkbox "✔︎"]
-      [:.todo-text "Finish app mockup"]
-      [:.todo-subtext
-        [:span "Dec 12"]
-        [:span "Clojure NYC webinar"]]]
-    [:.todo
-      [:.todo-checkbox "✔︎"]
-      [:.todo-text "Make a webinar plan"]]
-    [:.todo
-      [:.todo-checkbox "✔︎"]
-      [:.todo-text "Send plan to Dennis"]]])
+    (for [[eid] (d/q '[:find ?e :where [?e :todo/text]] db)
+          :let  [td (d/entity db eid)]]
+      [:.todo {:class (when (:todo/done td) "todo_done")}
+        [:.todo-checkbox "✔︎"]
+        [:.todo-text (:todo/text td)]
+        [:.todo-subtext
+          (when-let [due (:todo/due td)]
+            [:span (.toDateString due)])
+          (for [tag (:todo/tags td)]
+            [:span tag])]])])
 
 (defn extract-todo []
   (when-let [text (dom/value (dom/q ".add-text"))]
@@ -98,7 +86,7 @@
     [:.main-view
       (filter-pane)
       (overview-pane)
-      (todo-pane)]
+      (todo-pane db)]
     (add-view)])
 
 (defn render
