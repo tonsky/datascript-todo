@@ -18,3 +18,16 @@
 (defn format-month [month year]
   (str (get ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"] (dec month))
        " " (rem year 100)))
+
+(defn month-start [month year]
+  (js/Date. (str year "-" month "-01")))
+
+(defn month-end [month year]
+  (let [[month year] (if (< month 12)
+                       [(inc month) year]
+                       [01 (inc year)])]
+    (-> (str year "-" month "-01 00:00:00")
+        js/Date.
+        dec
+        js/Date.
+        )))

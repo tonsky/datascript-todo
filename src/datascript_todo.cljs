@@ -1,5 +1,6 @@
 (ns datascript-todo
   (:require
+    [clojure.set :as set]
     [clojure.string :as str]
     [cljs.reader]
     [datascript :as d]
@@ -99,6 +100,76 @@
         (when count
           [:span.group-item-count count])])])
 
+(defn all-todos [db]
+  (->>
+    (d/q '[:find ?e
+           :where [?e :todo/text]]
+           db)
+     (map first)
+     set))
+
+(defmulti todos-by-group (fn [db group item] group))
+(defmethod todos-by-group :inbox [db _ _]
+  (->>
+    (d/q '[:find ?todo ;; TODO check DS behaviour on empty rels
+           :where [?todo :todo/text]
+                  [(get-else $ ?todo :todo/project :none) ?project]
+                  [(get-else $ ?todo :todo/due :none) ?due]
+                  [(= ?project :none)]
+                  [(= ?due :none)]]
+          db)
+    (map first)
+    set))
+
+(defmethod todos-by-group :archive [db _ _]
+  (->>
+    (d/q '[:find ?todo
+           :where [?todo :todo/text]
+                  [?todo :todo/done true]]
+         db)
+    (map first)
+    (set)))
+
+(defmethod todos-by-group :project [db _ pid]
+  (->>
+    (d/q '[:find ?todo
+           :in   $ ?pid
+           :where [?todo :todo/project ?pid]]
+         db pid)
+    (map first)
+    set))
+
+(defmethod todos-by-group :month [db _ [year month]]
+  (->>
+    (d/q '[:find ?todo
+           :in   $ [?from ?to]
+           :where [?todo :todo/due ?due]
+                  [(<= ?from ?due ?to)]]
+         db [(u/month-start month year) (u/month-end month year)])
+    (map first)
+    set))
+
+(def filter-rule
+ '[[(match ?todo ?term)
+    [?todo :todo/project ?p]
+    [?p :project/name ?term]]
+   [(match ?todo ?term)
+    [?todo :todo/tags ?term]]])
+
+(defn filter-terms [db]
+  (not-empty
+    (str/split (:system/filter (d/entity db 0)) #"\s+")))
+
+(defn todos-by-filter [db terms]
+  (->>
+    (d/q '[:find ?e
+           :in $ % [?term ...]
+           :where [?e :todo/text]
+                  (match ?e ?term)]
+         db filter-rule terms)
+    (map first)
+    set))
+  
 (r/defc overview-pane [db]
   [:.overview-pane
     (inbox-group db)
@@ -113,41 +184,28 @@
 (defn toggle-todo [eid]
   (d/transact! conn [[:db.fn/call toggle-todo-tx eid]]))
 
-(def filter-rule
- '[[(match ?todo ?term)
-    [?todo :todo/project ?p]
-    [?p :project/name ?term]]
-   [(match ?todo ?term)
-    [?todo :todo/tags ?term]]])
-
-(defn filter-terms [db]
-  (not-empty
-    (str/split (:system/filter (d/entity db 0)) #"\s+")))
-
 (r/defc todo-pane [db]
   [:.todo-pane
-    (for [[eid] (->>
-                  (if-let [terms (filter-terms db)]
-                    (d/q '[:find ?e
-                           :in $ % [?term ...]
-                           :where [?e :todo/text]
-                                  (match ?e ?term)]
-                         db filter-rule terms)
-                    (d/q '[:find ?e
-                           :where [?e :todo/text]]
-                         db))
-                  (sort-by first))
-          :let  [td (d/entity db eid)]]
-      [:.todo {:class (if (:todo/done td) "todo_done" "")}
-        [:.todo-checkbox {:on-click #(toggle-todo eid)} "✔︎"]
-        [:.todo-text (:todo/text td)]
-        [:.todo-subtext
-          (when-let [due (:todo/due td)]
-            [:span (.toDateString due)])
-          (when-let [project (:todo/project td)]
-            [:span (:project/name project)])
-          (for [tag (:todo/tags td)]
-            [:span tag])]])])
+    (let [todos (all-todos db)
+          todos (if-let [ft (filter-terms db)]
+                  (set/intersection todos (todos-by-filter db ft))
+                  todos)
+          todos (if-let [group (u/v-by-ea db 0 :system/group)]
+                  (let [item (u/v-by-ea db 0 :system/group-item)]
+                    (set/intersection todos (todos-by-group db group item)))
+                    todos)]
+      (for [eid (sort todos)
+            :let [td (d/entity db eid)]]
+        [:.todo {:class (if (:todo/done td) "todo_done" "")}
+          [:.todo-checkbox {:on-click #(toggle-todo eid)} "✔︎"]
+          [:.todo-text (:todo/text td)]
+          [:.todo-subtext
+            (when-let [due (:todo/due td)]
+              [:span (.toDateString due)])
+            (when-let [project (:todo/project td)]
+              [:span (:project/name project)])
+            (for [tag (:todo/tags td)]
+              [:span tag])]]))])
 
 (defn extract-todo []
   (when-let [text (dom/value (dom/q ".add-text"))]
