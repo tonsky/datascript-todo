@@ -37,12 +37,23 @@
     [:.group
       [:.group-item  [:span "Archive"]]]])
 
+(defn toggle-todo-tx [db eid]
+  (let [done? (->> (d/q '[:find ?done
+                          :in $ ?e
+                          :where [?e :todo/done ?done]] db eid)
+                   ffirst)]
+    [[:db/add eid :todo/done (not done?)]]))
+
+(defn toggle-todo [eid]
+  (d/transact! conn [[:db.fn/call toggle-todo-tx eid]]))
+
 (r/defc todo-pane [db]
   [:.todo-pane
-    (for [[eid] (d/q '[:find ?e :where [?e :todo/text]] db)
+    (for [[eid] (->> (d/q '[:find ?e :where [?e :todo/text]] db)
+                     (sort-by first))
           :let  [td (d/entity db eid)]]
-      [:.todo {:class (when (:todo/done td) "todo_done")}
-        [:.todo-checkbox "✔︎"]
+      [:.todo {:class (if (:todo/done td) "todo_done" "")}
+        [:.todo-checkbox {:on-click #(toggle-todo eid)} "✔︎"]
         [:.todo-text (:todo/text td)]
         [:.todo-subtext
           (when-let [due (:todo/due td)]
@@ -66,6 +77,7 @@
 (defn add-todo []
   (when-let [todo (extract-todo)]
     (let [entity (->> {:todo/text (:text todo)
+                       :todo/done false
                        :todo/project nil ;; TODO
                        :todo/due  (:due todo)
                        :todo/tags (:tags todo)}
