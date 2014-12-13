@@ -17,6 +17,11 @@
 (r/defc filter-pane []
   [:.filter-pane
     [:input.filter {:type "text"
+                    :on-change (fn [_]
+                                 (d/transact! conn 
+                                   (if-let [value (dom/value (dom/q ".filter"))]
+                                     [[:db/add 0 :system/filter value]]
+                                     [[:db.fn/retractAttribute 0 :system/filter]])))
                     :placeholder "Filter"}]])
 
 (r/defc inbox-group [db]
@@ -89,10 +94,30 @@
 (defn toggle-todo [eid]
   (d/transact! conn [[:db.fn/call toggle-todo-tx eid]]))
 
+(def filter-rule
+ '[[(match ?todo ?term)
+    [?todo :todo/project ?p]
+    [?p :project/name ?term]]
+   [(match ?todo ?term)
+    [?todo :todo/tags ?term]]])
+
+(defn filter-terms [db]
+  (not-empty
+    (str/split (:system/filter (d/entity db 0)) #"\s+")))
+
 (r/defc todo-pane [db]
   [:.todo-pane
-    (for [[eid] (->> (d/q '[:find ?e :where [?e :todo/text]] db)
-                     (sort-by first))
+    (for [[eid] (->>
+                  (if-let [terms (filter-terms db)]
+                    (d/q '[:find ?e
+                           :in $ % [?term ...]
+                           :where [?e :todo/text]
+                                  (match ?e ?term)]
+                         db filter-rule terms)
+                    (d/q '[:find ?e
+                           :where [?e :todo/text]]
+                         db))
+                  (sort-by first))
           :let  [td (d/entity db eid)]]
       [:.todo {:class (if (:todo/done td) "todo_done" "")}
         [:.todo-checkbox {:on-click #(toggle-todo eid)} "✔︎"]
