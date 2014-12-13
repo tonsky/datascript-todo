@@ -10,12 +10,12 @@ body { background: linear-gradient(to bottom, hsl(185, 45%, 63%) 0%, hsl(185, 45
 input[type=text] { border: none; border-bottom: 2px solid #cfcfcf; background: transparent; }
 input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
 
-.canvas { width: 1100px; margin: 40px auto; }
-.main-view { width: 600px; }
+.canvas { width: 1200px; margin: 40px auto; }
+.main-view { width: 700px; }
 .add-view  { width: 400px; margin-left: 40px; }
 .main-view, .add-view { background: linear-gradient(to bottom, #fffffc 0%, #fafaf4 100%); border-radius: 9px; display: inline-block; box-shadow: 0 3px 10px hsla(0,0%,50%,0.9); border: 4px solid #f9bf3b; border-color: hsl(4, 74%, 65%); }
 
-.filter { font-size: 20px; line-height: 30px; width: 560px; margin: 20px auto; display: block; }
+.filter { font-size: 20px; line-height: 30px; width: 650px; margin: 20px auto; display: block; }
 
 .overview-pane, .todo-pane { display: inline-block; }
 

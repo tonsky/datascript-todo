@@ -1,6 +1,7 @@
 (ns datascript-todo
   (:require
     [clojure.string :as str]
+    [cljs.reader]
     [datascript :as d]
     [sablono.core]
     [datascript-todo.react :as r :include-macros true]
@@ -111,9 +112,22 @@
   (fn [tx-report]
     (render (:db-after tx-report))))
 
+;; logging of all transactions
 (d/listen! conn :log
   (fn [tx-report]
     (println (:tx-data tx-report))))
+
+;; persisting DB between page reloads
+(d/listen! conn :persistence
+  (fn [tx-report]
+    (js/localStorage.setItem "datascript/db" (pr-str (:db-after tx-report)))))
+
+;; restoring once persisted DB on page load
+(when-let [stored (js/localStorage.getItem "datascript/db")]
+  (binding [cljs.reader/*tag-table* (atom {"datascript/DB" d/db-from-reader})]
+    (reset! conn (cljs.reader/read-string stored))))
+
+#_(js/localStorage.clear)
 
 ;; for interactive re-evaluation
 (render)
