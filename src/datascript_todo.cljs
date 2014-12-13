@@ -4,11 +4,13 @@
     [datascript :as d]
     [sablono.core]
     [datascript-todo.react :as r :include-macros true]
-    [datascript-todo.dom :as dom]))
+    [datascript-todo.dom :as dom]
+    [datascript-todo.util :as u]))
 
 (enable-console-print!)
 
-(def schema {})
+(def schema {:todo/tags    {:db/cardinality :db.cardinality/many}
+             :todo/project {:db/valueType :db.type/ref}})
 (defonce conn (d/create-conn schema))
 
 (r/defc filter-pane []
@@ -67,8 +69,24 @@
      :due     (dom/date-value  (dom/q ".add-due"))
      :tags    (dom/array-value (dom/q ".add-tags"))}))
 
+(defn clean-todo []
+  (dom/set-value! (dom/q ".add-text") nil)
+  (dom/set-value! (dom/q ".add-project") nil)
+  (dom/set-value! (dom/q ".add-due") nil)
+  (dom/set-value! (dom/q ".add-tags") nil))
+
+(defn add-todo []
+  (when-let [todo (extract-todo)]
+    (let [entity (->> {:todo/text (:text todo)
+                       :todo/project nil ;; TODO
+                       :todo/due  (:due todo)
+                       :todo/tags (:tags todo)}
+                      (u/remove-vals nil?))]
+      (d/transact! conn [entity]))
+    (clean-todo)))
+
 (r/defc add-view []
-  [:form.add-view {:on-submit (constantly false)}
+  [:form.add-view {:on-submit (fn [_] (add-todo) false)}
     [:input.add-text    {:type "text" :placeholder "New task"}]
     [:input.add-project {:type "text" :placeholder "Project"}]
     [:input.add-tags    {:type "text" :placeholder "Tags"}]
@@ -83,7 +101,6 @@
       (todo-pane)]
     (add-view)])
 
-
 (defn render
   ([] (render @conn))
   ([db]
@@ -93,6 +110,10 @@
 (d/listen! conn :render
   (fn [tx-report]
     (render (:db-after tx-report))))
+
+(d/listen! conn :log
+  (fn [tx-report]
+    (println (:tx-data tx-report))))
 
 ;; for interactive re-evaluation
 (render)

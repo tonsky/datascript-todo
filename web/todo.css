@@ -47,7 +47,7 @@ input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
 .add-view > input[type=text] { width: 340px; margin: 20px 0; display: block;  }
 .add-view > input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
 .add-text { font-size: 20px; line-height: 30px; } 
-.add-view > .add-due  { width: 101px; }
+input[type=text].add-due { width: 101px; }
 
 .add-submit { border: none; border-radius: 4px; padding: 6px 12px 2px; cursor: pointer; }
 .add-submit:focus { outline: none; }
