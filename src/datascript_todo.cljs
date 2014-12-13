@@ -51,7 +51,15 @@
           [:span name]
           [:span.group-item-count count]])]
     [:.group
-      [:.group-item  [:span "Archive"]]]])
+      (let [count (->> (d/q '[:find (count ?todo)
+                              :where [?todo :todo/text _]
+                                     [?todo :todo/done true]]
+                            db)
+                       ffirst)]
+        [:.group-item
+          [:span "Archive"]
+          (when count
+            [:span.group-item-count count])])]])
 
 
 
