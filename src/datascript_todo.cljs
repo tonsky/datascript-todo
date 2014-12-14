@@ -22,9 +22,10 @@
         [:db/add 0 attr value]
         [:db.fn/retractAttribute 0 attr]))))
 
-(r/defc filter-pane []
+(r/defc filter-pane [db]
   [:.filter-pane
     [:input.filter {:type "text"
+                    :defaultValue (u/v-by-ea db 0 :system/filter)
                     :on-change (fn [_]
                                  (set-system-attrs! :system/filter (dom/value (dom/q ".filter"))))
                     :placeholder "Filter"}]])
@@ -246,7 +247,7 @@
 (r/defc canvas [db]
   [:.canvas
     [:.main-view
-      (filter-pane)
+      (filter-pane db)
       (overview-pane db)
       (todo-pane db)]
     (add-view)])
