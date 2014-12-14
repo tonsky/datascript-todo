@@ -276,8 +276,9 @@
 
 ;; restoring once persisted DB on page load
 (cljs.reader/register-tag-parser! "datascript/DB" d/db-from-reader)
-(when-let [stored (js/localStorage.getItem "datascript/db")]
-  (reset! conn (cljs.reader/read-string stored)))
+(if-let [stored (js/localStorage.getItem "datascript/db")]
+  (reset! conn (cljs.reader/read-string stored))
+  (d/transact! conn u/fixtures))
 
 #_(js/localStorage.clear)
 

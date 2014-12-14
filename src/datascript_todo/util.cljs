@@ -31,3 +31,45 @@
         dec
         js/Date.
         )))
+
+(def fixtures [
+  {:db/id -1
+   :project/name "datascript"}
+  {:db/id -2
+   :project/name "nyc-webinar"}
+  {:db/id -3
+   :project/name "shopping"}
+               
+  {:todo/text "Displaying list of todos"
+   :todo/tags ["listen" "query"]
+   :todo/project -2
+   :todo/done true
+   :todo/due  #inst "2014-12-13"}
+  {:todo/text "Persisting to localStorage"
+   :todo/tags ["listen" "serialization" "transact"]
+   :todo/project -2
+   :todo/done true
+   :todo/due  #inst "2014-12-13"}
+  {:todo/text "Make task completable"
+   :todo/tags ["transact" "funs"]
+   :todo/project -2
+   :todo/done false
+   :todo/due  #inst "2014-12-13"}
+  {:todo/text "Fix fn calls on emtpy rels"
+   :todo/tags ["bug" "funs" "query"]
+   :todo/project -1
+   :todo/done false
+   :todo/due  #inst "2015-01-01"}
+  {:todo/text "Add db filtering"
+   :todo/project -1
+   :todo/done false
+   :todo/due  #inst "2015-05-30"}
+  {:todo/text "Soap"
+   :todo/project -3
+   :todo/done false
+   :todo/due  #inst "2015-05-01"}
+  {:todo/text "Cake"
+   :todo/done false
+   :todo/project -3}
+  {:todo/text "Just a task" :todo/done false}
+  {:todo/text "Another incomplete task" :todo/done false}])
