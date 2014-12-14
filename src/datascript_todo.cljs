@@ -8,7 +8,9 @@
     [cognitect.transit :as transit]
     [datascript-todo.react :as r :include-macros true]
     [datascript-todo.dom :as dom]
-    [datascript-todo.util :as u]))
+    [datascript-todo.util :as u])
+  (:require-macros
+    [datascript-todo :refer [profile]]))
 
 (enable-console-print!)
 
@@ -268,7 +270,8 @@
 (defn render
   ([] (render @conn))
   ([db]
-    (r/render (canvas db) (.-body js/document))))
+    (profile "render"
+      (r/render (canvas db) (.-body js/document)))))
 
 ;; re-render on every DB change
 (d/listen! conn :render
@@ -278,7 +281,12 @@
 ;; logging of all transactions
 (d/listen! conn :log
   (fn [tx-report]
-    (println (:tx-data tx-report))))
+    (let [tx-id  (get-in tx-report [:tempids :db/current-tx])
+          datoms (:tx-data tx-report)
+          datom->str (fn [d] (str (if (.-added d) "+" "−")
+                               "[" (.-e d) " " (.-a d) " " (pr-str (.-v d)) "]"))]
+      (println
+        (str/join "\n" (concat [(str "tx " tx-id ":")] (map datom->str datoms)))))))
 
 ;; transit serialization
 
@@ -298,11 +306,13 @@
     { "datascript/Datom" d/datom-from-reader }}))
 
 (defn db->string [db]
-  (transit/write transit-writer (:eavt db)))
+  (profile "db serialization"
+    (transit/write transit-writer (:eavt db))))
 
 (defn string->db [s]
-  (let [datoms (transit/read transit-reader s)]
-    (d/init-db datoms schema)))
+  (profile "db deserialization"
+    (let [datoms (transit/read transit-reader s)]
+      (d/init-db datoms schema))))
 
 ;; persisting DB between page reloads
 (d/listen! conn :persistence
