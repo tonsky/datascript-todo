@@ -5,6 +5,7 @@
     [cljs.reader]
     [datascript :as d]
     [sablono.core]
+    [cognitect.transit :as transit]
     [datascript-todo.react :as r :include-macros true]
     [datascript-todo.dom :as dom]
     [datascript-todo.util :as u]))
@@ -279,20 +280,44 @@
   (fn [tx-report]
     (println (:tx-data tx-report))))
 
+;; transit serialization
+
+(deftype DatomHandler []
+  Object
+  (tag [_ _] "datascript/Datom")
+  (rep [_ d] #js [(.-e d) (.-a d) (.-v d) (.-tx d) (.-added d)])
+  (stringRep [_ _] nil))
+
+(def transit-writer
+  (transit/writer :json { :handlers
+    { datascript.core/Datom (DatomHandler.)
+      datascript.btset/BTSet (transit/VectorHandler.) }}))
+
+(def transit-reader
+  (transit/reader :json { :handlers
+    { "datascript/Datom" d/datom-from-reader }}))
+
+(defn db->string [db]
+  (transit/write transit-writer (:eavt db)))
+
+(defn string->db [s]
+  (let [datoms (transit/read transit-reader s)]
+    (d/init-db datoms schema)))
+
 ;; persisting DB between page reloads
 (d/listen! conn :persistence
   (fn [tx-report] ;; TODO do not notify with nil as db-report
                   ;; TODO do not notify if tx-data is empty
     (when-let [db (:db-after tx-report)]
-      (js/localStorage.setItem "datascript/db" (pr-str db)))))
+      (js/localStorage.setItem "datascript-todo/db" (db->string db)))))
 
 ;; restoring once persisted DB on page load
-(cljs.reader/register-tag-parser! "datascript/DB" d/db-from-reader)
-(if-let [stored (js/localStorage.getItem "datascript/db")]
-  (reset! conn (cljs.reader/read-string stored))
+(if-let [stored (js/localStorage.getItem "datascript-todo/db")]
+  (reset! conn (string->db stored))
   (d/transact! conn u/fixtures))
 
 #_(js/localStorage.clear)
 
 ;; for interactive re-evaluation
 (render)
+
