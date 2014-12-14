@@ -30,24 +30,34 @@
                                  (set-system-attrs! :system/filter (dom/value (dom/q ".filter"))))
                     :placeholder "Filter"}]])
 
+(r/defc all-group [db]
+  (let [count (count (d/datoms db :avet :todo/done false))]
+    [:.group-item {:class (when (or (nil? (u/v-by-ea db 0 :system/group))
+                                    (= :all (u/v-by-ea db 0 :system/group))) "group-item_selected")}
+      [:span {:on-click (fn [_]
+                          (set-system-attrs! :system/group :all
+                                             :system/group-item nil)) }
+        "All"]
+      (when count
+        [:span.group-item-count count])]))
+      
 (r/defc inbox-group [db]
-  [:.group
-    (let [count (->> (d/q '[:find (count ?todo) ;; TODO check DS behaviour on empty rels
-                            :where [?todo :todo/text _]
-                                   [?todo :todo/done false]
-                                   [(get-else $ ?todo :todo/project :none) ?project]
-                                   [(get-else $ ?todo :todo/due :none) ?due]
-                                   [(= ?project :none)]
-                                   [(= ?due :none)]]
-                           db)
-                     ffirst)]
-      [:.group-item {:class (when (= :inbox (u/v-by-ea db 0 :system/group)) "group-item_selected")}
-        [:span {:on-click (fn [_]
-                            (set-system-attrs! :system/group :inbox
-                                               :system/group-item nil)) }
-          "Inbox"]
-        (when count
-          [:span.group-item-count count])])])
+  (let [count (->> (d/q '[:find (count ?todo) ;; TODO check DS behaviour on empty rels
+                          :where [?todo :todo/text _]
+                                 [?todo :todo/done false]
+                                 [(get-else $ ?todo :todo/project :none) ?project]
+                                 [(get-else $ ?todo :todo/due :none) ?due]
+                                 [(= ?project :none)]
+                                 [(= ?due :none)]]
+                         db)
+                   ffirst)]
+    [:.group-item {:class (when (= :inbox (u/v-by-ea db 0 :system/group)) "group-item_selected")}
+      [:span {:on-click (fn [_]
+                          (set-system-attrs! :system/group :inbox
+                                             :system/group-item nil)) }
+        "Inbox"]
+      (when count
+        [:span.group-item-count count])]))
 
 (r/defc plan-group [db]
   [:.group
@@ -86,20 +96,19 @@
           name]
         [:span.group-item-count count]])])
 
-(r/defc archive-group [db]
-  [:.group
-    (let [count (->> (d/q '[:find (count ?todo)
-                            :where [?todo :todo/text _]
-                                   [?todo :todo/done true]]
-                          db)
-                     ffirst)]
-      [:.group-item {:class (when (= :archive (u/v-by-ea db 0 :system/group)) "group-item_selected")}
-        [:span {:on-click (fn [_]
-                            (set-system-attrs! :system/group :archive
-                                               :system/group-item nil))}
-          "Archive"]
-        (when count
-          [:span.group-item-count count])])])
+(r/defc completed-group [db]
+  (let [count (->> (d/q '[:find (count ?todo)
+                          :where [?todo :todo/text _]
+                                 [?todo :todo/done true]]
+                        db)
+                   ffirst)]
+    [:.group-item {:class (when (= :archive (u/v-by-ea db 0 :system/group)) "group-item_selected")}
+      [:span {:on-click (fn [_]
+                          (set-system-attrs! :system/group :archive
+                                             :system/group-item nil))}
+        "Completed"]
+      (when count
+        [:span.group-item-count count])]))
 
 (defn all-todos [db]
   (->>
@@ -173,10 +182,12 @@
   
 (r/defc overview-pane [db]
   [:.overview-pane
-    (inbox-group db)
-    (plan-group  db)
-    (projects-group db)
-    (archive-group db)])
+    [:.group
+      (inbox-group db)
+      (completed-group db)
+      (all-group db)]
+    (plan-group db)
+    (projects-group db)])
 
 (defn toggle-todo-tx [db eid]
   (let [done? (u/v-by-ea db eid :todo/done)]
@@ -187,14 +198,15 @@
 
 (r/defc todo-pane [db]
   [:.todo-pane
-    (let [todos (all-todos db)
+    (let [todos (let [group (u/v-by-ea db 0 :system/group)
+                      item (u/v-by-ea db 0 :system/group-item)]
+                  (if (or (nil? group)
+                          (= group :all))
+                    (all-todos db)
+                    (todos-by-group db group item)))
           todos (if-let [ft (filter-terms db)]
                   (set/intersection todos (todos-by-filter db ft))
-                  todos)
-          todos (if-let [group (u/v-by-ea db 0 :system/group)]
-                  (let [item (u/v-by-ea db 0 :system/group-item)]
-                    (set/intersection todos (todos-by-group db group item)))
-                    todos)]
+                  todos)]
       (for [eid (sort todos)
             :let [td (d/entity db eid)]]
         [:.todo {:class (if (:todo/done td) "todo_done" "")}

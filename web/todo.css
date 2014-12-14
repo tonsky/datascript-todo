@@ -10,6 +10,8 @@ body { background: linear-gradient(to bottom, hsl(185, 45%, 63%) 0%, hsl(185, 45
 input[type=text] { border: none; border-bottom: 2px solid #cfcfcf; background: transparent; }
 input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
 
+.todo-checkbox, .group-item { -moz-user-select: none; -webkit-user-select: none; -ms-user-select: none; }
+
 .canvas { width: 1200px; margin: 40px auto; }
 .main-view { width: 700px; }
 .add-view  { width: 400px; margin-left: 40px; }
@@ -36,7 +38,7 @@ input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
 .todo-subtext { font-size: 10px; margin-left: 26px; }
 .todo-subtext > span + span:before { content: "·"; margin: 0 3px; }
 
-.todo-checkbox { width: 18px; height: 18px; border: 2px solid #f9bf3b; border-radius: 4px; float: left; font-size: 20px; line-height: 14px; padding: 0 0 0 2px; cursor: pointer; border-color: hsl(4, 74%, 65%); -moz-user-select: none; -webkit-user-select: none; -ms-user-select: none; }
+.todo-checkbox { width: 18px; height: 18px; border: 2px solid #f9bf3b; border-radius: 4px; float: left; font-size: 20px; line-height: 14px; padding: 0 0 0 2px; cursor: pointer; border-color: hsl(4, 74%, 65%);}
 .todo-checkbox { color: transparent; }
 .todo-checkbox:hover { background: hsl(4, 74%, 80%); }
 .todo_done > .todo-checkbox { color: #ccc; background: hsl(4, 74%, 94%); border-color: hsl(4, 74%, 94%); }

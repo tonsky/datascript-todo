@@ -16,8 +16,19 @@
    (inc (.getMonth date))])
 
 (defn format-month [month year]
-  (str (get ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"] (dec month))
-       " " (rem year 100)))
+  (str (get ["January"
+             "February"
+             "March"
+             "April"
+             "May"
+             "June"
+             "July"
+             "August"
+             "September"
+             "October"
+             "November"
+             "December"] (dec month))
+       " " year))
 
 (defn month-start [month year]
   (js/Date. (str year "-" month "-01")))
@@ -28,11 +39,13 @@
                        [01 (inc year)])]
     (-> (str year "-" month "-01 00:00:00")
         js/Date.
+        .getTime
         dec
         js/Date.
         )))
 
 (def fixtures [
+  [:db/add 0 :system/group :all]
   {:db/id -1
    :project/name "datascript"}
   {:db/id -2
