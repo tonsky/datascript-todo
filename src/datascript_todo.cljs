@@ -18,6 +18,9 @@
              :todo/project {:db/valueType :db.type/ref}})
 (defonce conn (d/create-conn schema))
 
+;; Eventually will be replaced with `:find [?todo ...]` query form
+(defn q1s [q & ins] (->> (apply d/q q ins) (map first) set))
+
 ;; Entity with id=0 is used for storing auxilary view information
 ;; like filter value and selected group
 
@@ -44,6 +47,8 @@
                                  (set-system-attrs! :system/filter (dom/value (dom/q ".filter"))))
                     :placeholder "Filter"}]])
 
+;; Rules are used to implement OR semantic of a filter
+;; ?term must match either :project/name OR :todo/tags
 (def filter-rule
  '[[(match ?todo ?term)
     [?todo :todo/project ?p]
@@ -51,22 +56,21 @@
    [(match ?todo ?term)
     [?todo :todo/tags ?term]]])
 
+;; terms are passed as a collection to query,
+;; each term futher interpreted with OR semantic
 (defn todos-by-filter [db terms]
-  (->>
-    (d/q '[:find ?e
-           :in $ % [?term ...]
-           :where [?e :todo/text]
-                  (match ?e ?term)]
-         db filter-rule terms)
-    (map first)
-    set))
+  (q1s '[:find ?e
+         :in $ % [?term ...]
+         :where [?e :todo/text]
+                (match ?e ?term)]
+    db filter-rule terms))
 
 (defn filter-terms [db]
   (not-empty
     (str/split (system-attr db :system/filter) #"\s+")))
 
 (defn filtered-db [db]
-  (if-let [terms     (filter-terms db)]
+  (if-let [terms   (filter-terms db)]
     (let[whitelist (todos-by-filter db terms)
          pred      (fn [db datom]
                      (or (not= "todo" (namespace (.-a datom)))
@@ -74,30 +78,30 @@
       (d/filter db pred))
     db))
 
-
 ;; Groups
 
-;; Eventually will be replaced with `:find [?todo ...]` query form
-(defn q1s [q & ins] (->> (apply d/q q ins) (map first) set))
-
 (defmulti todos-by-group (fn [db group item] group))
+
+;; Datalog has no negative semantic (NOT IN), we emulate it
+;; with get-else (get attribute with default value), and then
+;; filtering by that attribute, keeping only todos that resulted
+;; into default value
 (defmethod todos-by-group :inbox [db _ _]
-  (q1s '[:find ?todo ;; TODO check DS behaviour on empty rels
-           :where [?todo :todo/text]
-                  [(get-else $ ?todo :todo/project :none) ?project]
-                  [(get-else $ ?todo :todo/due :none) ?due]
-                  [(= ?project :none)]
-                  [(= ?due :none)]]
+  (q1s '[:find ?todo
+         :where [?todo :todo/text]
+                [(get-else $ ?todo :todo/project :none) ?project]
+                [(get-else $ ?todo :todo/due :none) ?due]
+                [(= ?project :none)]
+                [(= ?due :none)]]
     db))
 
 (defmethod todos-by-group :completed [db _ _]
   (q1s '[:find ?todo
-         :where [?todo :todo/text]
-                [?todo :todo/done true]]
+         :where [?todo :todo/done true]]
     db))
 
 (defmethod todos-by-group :all [db _ _]
-  (q1s '[:find ?todo
+  (q1s '[:find  ?todo
          :where [?todo :todo/text]]
     db))
 
@@ -107,20 +111,14 @@
          :where [?todo :todo/project ?pid]]
        db pid))
 
+;; Since todos do not store month directly, we pass in
+;; month boundaries and then filter todos with <= predicate
 (defmethod todos-by-group :month [db _ [year month]]
   (q1s '[:find ?todo
          :in   $ [?from ?to]
          :where [?todo :todo/due ?due]
                 [(<= ?from ?due ?to)]]
        db [(u/month-start month year) (u/month-end month year)]))
-
-;; FIXME
-;; (d/q '[:find ?todo
-;;         :in $ [?todo ...]
-;;         :where [$ ?todo done false]]
-;;    [[1 :done true]
-;;     [2 :done false]]
-;;    []) => #{[2]} should be #{}
 
 (r/defc group-item [db title group item]
   ;; Joining DB with a collection
@@ -129,8 +127,8 @@
                 (->> (d/q '[:find (count ?todo)
                             :in $ [?todo ...]
                             :where [$ ?todo :todo/done false]]
-                     db todos)
-                   ffirst))]
+                       db todos)
+                     ffirst))]
     [:.group-item {:class (when (= [group item] (system-attr db :system/group :system/group-item))
                             "group-item_selected")}
       [:span {:on-click (fn [_]
@@ -143,11 +141,12 @@
 (r/defc plan-group [db]
   [:.group
     [:.group-title "Plan"]
+    ;; Here we’re calculating month inside a query via passed in function
     (for [[[year month]] (->> (d/q '[:find ?month
                                      :in   $ ?date->month
                                      :where [?todo :todo/due ?date]
                                             [(?date->month ?date) ?month]]
-                                         db u/date->month)
+                                   db u/date->month)
                               sort)]
       (group-item db (u/format-month month year) :month [year month]))])
 
@@ -171,6 +170,10 @@
     (projects-group db)
    ])
 
+;; This transaction function swaps the value of :todo/done attribute.
+;; Transaction funs are handy in situations when to decide what to do
+;; you need to analyse db first. They deliver atomicity and linearizeability
+;; to such calculations
 (defn toggle-todo-tx [db eid]
   (let [done? (:todo/done (d/entity db eid))]
     [[:db/add eid :todo/done (not done?)]]))
@@ -190,6 +193,8 @@
           [:.todo-subtext
             (when-let [due (:todo/due td)]
               [:span (.toDateString due)])
+            ;; here we’re using entity ref navigation, going from
+            ;; todo (td) to project to project/name
             (when-let [project (:todo/project td)]
               [:span (:project/name project)])
             (for [tag (:todo/tags td)]
@@ -210,6 +215,11 @@
 
 (defn add-todo []
   (when-let [todo (extract-todo)]
+    ;; This is slightly complicated logic where we need to identify
+    ;; if a project with such name already exist. If yes, we need its
+    ;; id to reference from entity, if not, we need to create it first
+    ;; and then use its id to reference. We’re doing both in a single
+    ;; transaction to avoid inconsistencies
     (let [project    (:project todo)
           project-id (when project (u/e-by-av @conn :project/name project))
           project-tx (when (and project (nil? project-id))
@@ -252,7 +262,7 @@
   (fn [tx-report]
     (render (:db-after tx-report))))
 
-;; logging of all transactions
+;; logging of all transactions (prettified)
 (d/listen! conn :log
   (fn [tx-report]
     (let [tx-id  (get-in tx-report [:tempids :db/current-tx])
