@@ -18,6 +18,9 @@
              :todo/project {:db/valueType :db.type/ref}})
 (defonce conn (d/create-conn schema))
 
+;; Entity with id=0 is used for storing auxilary view information
+;; like filter value and selected group
+
 (defn set-system-attrs! [& args]
   (d/transact! conn 
     (for [[attr value] (partition 2 args)]
@@ -25,142 +28,21 @@
         [:db/add 0 attr value]
         [:db.fn/retractAttribute 0 attr]))))
 
+(defn system-attr
+  ([db attr] (get (d/entity db 0) attr))
+  ([db attr & attrs]
+    (mapv #(system-attr db %) (concat [attr] attrs))))
+
+
+;; Keyword filter
+
 (r/defc filter-pane [db]
   [:.filter-pane
     [:input.filter {:type "text"
-                    :defaultValue (u/v-by-ea db 0 :system/filter)
+                    :defaultValue (system-attr db :system/filter)
                     :on-change (fn [_]
                                  (set-system-attrs! :system/filter (dom/value (dom/q ".filter"))))
                     :placeholder "Filter"}]])
-
-(r/defc all-group [db]
-  (let [count (count (d/datoms db :avet :todo/done false))]
-    [:.group-item {:class (when (or (nil? (u/v-by-ea db 0 :system/group))
-                                    (= :all (u/v-by-ea db 0 :system/group))) "group-item_selected")}
-      [:span {:on-click (fn [_]
-                          (set-system-attrs! :system/group :all
-                                             :system/group-item nil)) }
-        "All"]
-      (when count
-        [:span.group-item-count count])]))
-      
-(r/defc inbox-group [db]
-  (let [count (->> (d/q '[:find (count ?todo) ;; TODO check DS behaviour on empty rels
-                          :where [?todo :todo/text _]
-                                 [?todo :todo/done false]
-                                 [(get-else $ ?todo :todo/project :none) ?project]
-                                 [(get-else $ ?todo :todo/due :none) ?due]
-                                 [(= ?project :none)]
-                                 [(= ?due :none)]]
-                         db)
-                   ffirst)]
-    [:.group-item {:class (when (= :inbox (u/v-by-ea db 0 :system/group)) "group-item_selected")}
-      [:span {:on-click (fn [_]
-                          (set-system-attrs! :system/group :inbox
-                                             :system/group-item nil)) }
-        "Inbox"]
-      (when count
-        [:span.group-item-count count])]))
-
-(r/defc plan-group [db]
-  [:.group
-    [:.group-title "Plan"]
-    (for [[[year month] count] (->> (d/q '[:find ?month (count ?todo)
-                                           :in   $ ?date->month
-                                           :where [?todo :todo/due ?date]
-                                                  [?todo :todo/done false]
-                                                  [(?date->month ?date) ?month]]
-                                  db u/date->month)
-                             (sort-by first))]
-      [:.group-item {:class (when (and (= :month (u/v-by-ea db 0 :system/group))
-                                       (= [year month] (u/v-by-ea db 0 :system/group-item)))
-                              "group-item_selected")}
-        [:span {:on-click (fn [_]
-                            (set-system-attrs! :system/group :month
-                                               :system/group-item [year month]))}
-          (u/format-month month year)]
-        [:span.group-item-count count]])])
-
-(r/defc projects-group [db]
-  [:.group
-    [:.group-title "Projects"]
-    (for [[pid name count] (->> (d/q '[:find ?p ?name (count ?todo)
-                                       :where [?p :project/name ?name]
-                                              [?todo :todo/project ?p]
-                                              [?todo :todo/done false]]
-                                     db)
-                                (sort-by first))]
-      [:.group-item {:class (when (and (= :project (u/v-by-ea db 0 :system/group))
-                                       (= pid (u/v-by-ea db 0 :system/group-item)))
-                              "group-item_selected")}
-        [:span {:on-click (fn [_]
-                            (set-system-attrs! :system/group :project
-                                               :system/group-item pid)) }
-          name]
-        [:span.group-item-count count]])])
-
-(r/defc completed-group [db]
-  (let [count (->> (d/q '[:find (count ?todo)
-                          :where [?todo :todo/text _]
-                                 [?todo :todo/done true]]
-                        db)
-                   ffirst)]
-    [:.group-item {:class (when (= :archive (u/v-by-ea db 0 :system/group)) "group-item_selected")}
-      [:span {:on-click (fn [_]
-                          (set-system-attrs! :system/group :archive
-                                             :system/group-item nil))}
-        "Completed"]
-      (when count
-        [:span.group-item-count count])]))
-
-(defn all-todos [db]
-  (->>
-    (d/q '[:find ?e
-           :where [?e :todo/text]]
-           db)
-     (map first)
-     set))
-
-(defmulti todos-by-group (fn [db group item] group))
-(defmethod todos-by-group :inbox [db _ _]
-  (->>
-    (d/q '[:find ?todo ;; TODO check DS behaviour on empty rels
-           :where [?todo :todo/text]
-                  [(get-else $ ?todo :todo/project :none) ?project]
-                  [(get-else $ ?todo :todo/due :none) ?due]
-                  [(= ?project :none)]
-                  [(= ?due :none)]]
-          db)
-    (map first)
-    set))
-
-(defmethod todos-by-group :archive [db _ _]
-  (->>
-    (d/q '[:find ?todo
-           :where [?todo :todo/text]
-                  [?todo :todo/done true]]
-         db)
-    (map first)
-    (set)))
-
-(defmethod todos-by-group :project [db _ pid]
-  (->>
-    (d/q '[:find ?todo
-           :in   $ ?pid
-           :where [?todo :todo/project ?pid]]
-         db pid)
-    (map first)
-    set))
-
-(defmethod todos-by-group :month [db _ [year month]]
-  (->>
-    (d/q '[:find ?todo
-           :in   $ [?from ?to]
-           :where [?todo :todo/due ?due]
-                  [(<= ?from ?due ?to)]]
-         db [(u/month-start month year) (u/month-end month year)])
-    (map first)
-    set))
 
 (def filter-rule
  '[[(match ?todo ?term)
@@ -168,10 +50,6 @@
     [?p :project/name ?term]]
    [(match ?todo ?term)
     [?todo :todo/tags ?term]]])
-
-(defn filter-terms [db]
-  (not-empty
-    (str/split (:system/filter (d/entity db 0)) #"\s+")))
 
 (defn todos-by-filter [db terms]
   (->>
@@ -182,18 +60,119 @@
          db filter-rule terms)
     (map first)
     set))
-  
+
+(defn filter-terms [db]
+  (not-empty
+    (str/split (system-attr db :system/filter) #"\s+")))
+
+(defn filtered-db [db]
+  (if-let [terms     (filter-terms db)]
+    (let[whitelist (todos-by-filter db terms)
+         pred      (fn [db datom]
+                     (or (not= "todo" (namespace (.-a datom)))
+                         (contains? whitelist (.-e datom))))]
+      (d/filter db pred))
+    db))
+
+
+;; Groups
+
+;; Eventually will be replaced with `:find [?todo ...]` query form
+(defn q1s [q & ins] (->> (apply d/q q ins) (map first) set))
+
+(defmulti todos-by-group (fn [db group item] group))
+(defmethod todos-by-group :inbox [db _ _]
+  (q1s '[:find ?todo ;; TODO check DS behaviour on empty rels
+           :where [?todo :todo/text]
+                  [(get-else $ ?todo :todo/project :none) ?project]
+                  [(get-else $ ?todo :todo/due :none) ?due]
+                  [(= ?project :none)]
+                  [(= ?due :none)]]
+    db))
+
+(defmethod todos-by-group :completed [db _ _]
+  (q1s '[:find ?todo
+         :where [?todo :todo/text]
+                [?todo :todo/done true]]
+    db))
+
+(defmethod todos-by-group :all [db _ _]
+  (q1s '[:find ?todo
+         :where [?todo :todo/text]]
+    db))
+
+(defmethod todos-by-group :project [db _ pid]
+  (q1s '[:find ?todo
+         :in   $ ?pid
+         :where [?todo :todo/project ?pid]]
+       db pid))
+
+(defmethod todos-by-group :month [db _ [year month]]
+  (q1s '[:find ?todo
+         :in   $ [?from ?to]
+         :where [?todo :todo/due ?due]
+                [(<= ?from ?due ?to)]]
+       db [(u/month-start month year) (u/month-end month year)]))
+
+;; FIXME
+;; (d/q '[:find ?todo
+;;         :in $ [?todo ...]
+;;         :where [$ ?todo done false]]
+;;    [[1 :done true]
+;;     [2 :done false]]
+;;    []) => #{[2]} should be #{}
+
+(r/defc group-item [db title group item]
+  ;; Joining DB with a collection
+  (let [todos (todos-by-group db group item)
+        count (when (not-empty todos) ;; FIXME should be fixed in DataScript
+                (->> (d/q '[:find (count ?todo)
+                            :in $ [?todo ...]
+                            :where [$ ?todo :todo/done false]]
+                     db todos)
+                   ffirst))]
+    [:.group-item {:class (when (= [group item] (system-attr db :system/group :system/group-item))
+                            "group-item_selected")}
+      [:span {:on-click (fn [_]
+                          (set-system-attrs! :system/group group
+                                             :system/group-item item)) }
+        title]
+      (when count
+        [:span.group-item-count count])]))
+
+(r/defc plan-group [db]
+  [:.group
+    [:.group-title "Plan"]
+    (for [[[year month]] (->> (d/q '[:find ?month
+                                     :in   $ ?date->month
+                                     :where [?todo :todo/due ?date]
+                                            [(?date->month ?date) ?month]]
+                                         db u/date->month)
+                              sort)]
+      (group-item db (u/format-month month year) :month [year month]))])
+
+(r/defc projects-group [db]
+  [:.group
+    [:.group-title "Projects"]
+    (for [[pid name] (->> (d/q '[:find ?pid ?project
+                                 :where [?todo :todo/project ?pid]
+                                        [?pid :project/name ?project]]
+                            db)
+                          (sort-by second))]
+      (group-item db name :project pid))])
+
 (r/defc overview-pane [db]
   [:.overview-pane
     [:.group
-      (inbox-group db)
-      (completed-group db)
-      (all-group db)]
+      (group-item db "Inbox"     :inbox nil)
+      (group-item db "Completed" :completed nil)
+      (group-item db "All"       :all nil)]
     (plan-group db)
-    (projects-group db)])
+    (projects-group db)
+   ])
 
 (defn toggle-todo-tx [db eid]
-  (let [done? (u/v-by-ea db eid :todo/done)]
+  (let [done? (:todo/done (d/entity db eid))]
     [[:db/add eid :todo/done (not done?)]]))
 
 (defn toggle-todo [eid]
@@ -201,15 +180,8 @@
 
 (r/defc todo-pane [db]
   [:.todo-pane
-    (let [todos (let [group (u/v-by-ea db 0 :system/group)
-                      item (u/v-by-ea db 0 :system/group-item)]
-                  (if (or (nil? group)
-                          (= group :all))
-                    (all-todos db)
-                    (todos-by-group db group item)))
-          todos (if-let [ft (filter-terms db)]
-                  (set/intersection todos (todos-by-filter db ft))
-                  todos)]
+    (let [todos (let [[group item] (system-attr db :system/group :system/group-item)]
+                  (todos-by-group db group item))]
       (for [eid (sort todos)
             :let [td (d/entity db eid)]]
         [:.todo {:class (if (:todo/done td) "todo_done" "")}
@@ -263,8 +235,10 @@
   [:.canvas
     [:.main-view
       (filter-pane db)
-      (overview-pane db)
-      (todo-pane db)]
+      (let [db (filtered-db db)]
+        (list
+          (overview-pane db)
+          (todo-pane db)))]
     (add-view)])
 
 (defn render
@@ -307,7 +281,7 @@
 
 (defn db->string [db]
   (profile "db serialization"
-    (transit/write transit-writer (:eavt db))))
+    (transit/write transit-writer (d/datoms db :eavt))))
 
 (defn string->db [s]
   (profile "db deserialization"
@@ -316,8 +290,8 @@
 
 ;; persisting DB between page reloads
 (d/listen! conn :persistence
-  (fn [tx-report] ;; TODO do not notify with nil as db-report
-                  ;; TODO do not notify if tx-data is empty
+  (fn [tx-report] ;; FIXME do not notify with nil as db-report
+                  ;; FIXME do not notify if tx-data is empty
     (when-let [db (:db-after tx-report)]
       (js/localStorage.setItem "datascript-todo/db" (db->string db)))))
 

@@ -8,9 +8,6 @@
 (defn e-by-av [db a v]
   (-> (d/datoms db :avet a v) first :e))
 
-(defn v-by-ea [db e a]
-  (-> (d/datoms db :eavt e a) first :v))
-
 (defn date->month [date]
   [(.getFullYear date)
    (inc (.getMonth date))])
