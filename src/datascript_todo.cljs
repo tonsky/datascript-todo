@@ -123,12 +123,11 @@
 (r/defc group-item [db title group item]
   ;; Joining DB with a collection
   (let [todos (todos-by-group db group item)
-        count (when (not-empty todos) ;; FIXME should be fixed in DataScript
-                (->> (d/q '[:find (count ?todo)
-                            :in $ [?todo ...]
-                            :where [$ ?todo :todo/done false]]
-                       db todos)
-                     ffirst))]
+        count (->> (d/q '[:find (count ?todo)
+                          :in $ [?todo ...]
+                          :where [$ ?todo :todo/done false]]
+                     db todos)
+                   ffirst)]
     [:.group-item {:class (when (= [group item] (system-attr db :system/group :system/group-item))
                             "group-item_selected")}
       [:span {:on-click (fn [_]
@@ -283,7 +282,7 @@
 (def transit-writer
   (transit/writer :json { :handlers
     { datascript.core/Datom (DatomHandler.)
-      datascript.btset/BTSet (transit/VectorHandler.) }}))
+      datascript.btset/BTSetIter (transit/VectorHandler.) }}))
 
 (def transit-reader
   (transit/reader :json { :handlers
