@@ -5,6 +5,24 @@
 (defn remove-vals [f m]
   (reduce-kv (fn [m k v] (if (f v) m (assoc m k v))) (empty m) m))
 
+(defn find-prev [xs pred]
+  (last (take-while #(not (pred %)) xs)))
+
+(defn find-next [xs pred]
+  (fnext (drop-while #(not (pred %)) xs)))
+
+(defn drop-tail [xs pred]
+  (loop [acc []
+         xs  xs]
+    (let [x (first xs)]
+      (cond
+        (nil? x) acc
+        (pred x) (conj acc x)
+        :else  (recur (conj acc x) (next xs))))))
+
+(defn trim-head [xs n]
+  (vec (drop (- (count xs) n) xs)))
+
 (defn e-by-av [db a v]
   (-> (d/datoms db :avet a v) first :e))
 

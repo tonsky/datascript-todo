@@ -18,6 +18,13 @@
              :todo/project {:db/valueType :db.type/ref}})
 (defonce conn (d/create-conn schema))
 
+(declare render persist)
+
+(defn reset-conn! [db]
+  (reset! conn db)
+  (render db)
+  (persist db))
+
 ;; Eventually will be replaced with `:find [?todo ...]` query form
 (defn q1s [q & ins] (->> (apply d/q q ins) (map first) set))
 
@@ -32,17 +39,22 @@
         [:db.fn/retractAttribute 0 attr]))))
 
 (defn system-attr
-  ([db attr] (get (d/entity db 0) attr))
+  ([db attr]
+    (get (d/entity db 0) attr))
   ([db attr & attrs]
     (mapv #(system-attr db %) (concat [attr] attrs))))
 
+;; History
+
+(defonce history (atom []))
+(def ^:const history-limit 10)
 
 ;; Keyword filter
 
 (r/defc filter-pane [db]
   [:.filter-pane
     [:input.filter {:type "text"
-                    :defaultValue (system-attr db :system/filter)
+                    :value (or (system-attr db :system/filter) "")
                     :on-change (fn [_]
                                  (set-system-attrs! :system/filter (dom/value (dom/q ".filter"))))
                     :placeholder "Filter"}]])
@@ -240,6 +252,24 @@
     [:input.add-due     {:type "text" :placeholder "Due date"}]
     [:input.add-submit  {:type "submit" :value "Add task"}]])
 
+;; js identity comparison does not work here (why?),
+;; so we’re relying on max-tx when comparing databases
+(defn db-identical? [x y]
+  (== (.-max-tx x) (.-max-tx y)))
+
+(r/defc history-view [db]
+  [:.history-view
+    (for [state @history]
+      [:.history-state 
+       { :class (when (db-identical? state db) "history-selected")
+         :on-click (fn [_] (reset-conn! state)) }])
+    (if-let [prev (u/find-prev @history #(db-identical? db %))]
+      [:button.history-btn {:on-click (fn [_] (reset-conn! prev))} "← undo"]
+      [:button.history-btn {:disabled true} "← undo"])
+    (if-let [next (u/find-next @history #(db-identical? db %))]
+      [:button.history-btn {:on-click (fn [_] (reset-conn! next))} "redo →"]
+      [:button.history-btn {:disabled true} "redo →"])])
+
 (r/defc canvas [db]
   [:.canvas
     [:.main-view
@@ -248,7 +278,9 @@
         (list
           (overview-pane db)
           (todo-pane db)))]
-    (add-view)])
+    (add-view)
+    (history-view db)    
+   ])
 
 (defn render
   ([] (render @conn))
@@ -270,6 +302,18 @@
                                "[" (.-e d) " " (.-a d) " " (pr-str (.-v d)) "]"))]
       (println
         (str/join "\n" (concat [(str "tx " tx-id ":")] (map datom->str datoms)))))))
+
+;; history
+
+(d/listen! conn :history
+  (fn [tx-report]
+    (let [{:keys [db-before db-after]} tx-report]
+      (when (and db-before db-after)
+        (swap! history (fn [h]
+          (-> h
+            (u/drop-tail #(db-identical? % db-before))
+            (conj db-after)
+            (u/trim-head history-limit))))))))
 
 ;; transit serialization
 
@@ -298,19 +342,23 @@
       (d/init-db datoms schema))))
 
 ;; persisting DB between page reloads
+(defn persist [db]
+  (js/localStorage.setItem "datascript-todo/db" (db->string db)))
+
 (d/listen! conn :persistence
   (fn [tx-report] ;; FIXME do not notify with nil as db-report
                   ;; FIXME do not notify if tx-data is empty
     (when-let [db (:db-after tx-report)]
-      (js/localStorage.setItem "datascript-todo/db" (db->string db)))))
+      (persist db))))
 
 ;; restoring once persisted DB on page load
 (if-let [stored (js/localStorage.getItem "datascript-todo/db")]
-  (reset! conn (string->db stored))
+  (do
+    (reset-conn! (string->db stored))
+    (swap! history conj @conn))
   (d/transact! conn u/fixtures))
 
 #_(js/localStorage.clear)
 
 ;; for interactive re-evaluation
 (render)
-

@@ -8,9 +8,10 @@ html, body { width: 100%; height: 100%; margin: 0; padding: 0;  }
 body { background: linear-gradient(to bottom, hsl(185, 45%, 63%) 0%, hsl(185, 45%, 58%) 100%); background-attachment: fixed; }
 
 input[type=text] { border: none; border-bottom: 2px solid #cfcfcf; background: transparent; }
-input[type=text]:focus { outline: none; border-color: hsl(4, 74%, 65%); }
+input[type=text]:focus { border-color: hsl(4, 74%, 65%); }
+input[type=text], button { outline: none; }
 
-.todo-checkbox, .group-item { -moz-user-select: none; -webkit-user-select: none; -ms-user-select: none; }
+.todo-checkbox, .group-item, .history-view { -moz-user-select: none; -webkit-user-select: none; -ms-user-select: none; }
 
 .canvas { width: 1200px; margin: 40px auto; }
 .main-view { width: 700px; }
@@ -54,3 +55,9 @@ input[type=text].add-due { width: 101px; }
 .add-submit { border: none; border-radius: 4px; padding: 6px 12px 2px; cursor: pointer; }
 .add-submit:focus { outline: none; }
 .add-submit:active { box-shadow: 0 2px 4px hsla(0,0%,0%,0.2) inset; position: relative; top: 1px; }
+
+.history-view { margin: 10px 0; line-height: 22px; }
+.history-btn { border:none; background: transparent; cursor: pointer; }
+.history-btn[disabled] { opacity: 0.2; cursor: default; }
+.history-state { margin: 0 4px; width: 14px; height: 14px; border:none; background: white; opacity:0.3; display: inline-block; vertical-align: middle; cursor: pointer; }
+.history-selected { opacity: 1; }
