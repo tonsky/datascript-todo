@@ -2,5 +2,5 @@
 
 ```clj
 lein cljsbuild auto dev &
-open dev/index.html
+open index.html
 ```

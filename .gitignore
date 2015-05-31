@@ -1,4 +1,5 @@
-/target
+/target/**
+!/target/todo.js
 /classes
 /checkouts
 pom.xml

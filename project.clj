@@ -1,28 +1,26 @@
 (defproject datascript-todo "0.1.0"
-  :global-vars  {*warn-on-reflection* true}
-
   :dependencies [
-    [org.clojure/clojure "1.7.0-alpha4"]
-    [org.clojure/clojurescript "0.0-2411"]
-    [datascript "0.7.1"]
-    [sablono "0.2.22"]
-    [com.facebook/react "0.11.2"]
-    [com.cognitect/transit-cljs "0.8.194"]
+    [org.clojure/clojure "1.7.0-RC1"]
+    [org.clojure/clojurescript "0.0-3297"]
+    [datascript "0.11.2"]
+    [rum "0.2.6"]
+    [com.cognitect/transit-cljs "0.8.215"]
   ]
 
   :plugins [
-    [lein-cljsbuild "1.0.3"]
+    [lein-cljsbuild "1.0.6"]
   ]
 
   :cljsbuild { 
     :builds [
-      { :id "release"
+      { :id "advanced"
         :source-paths  ["src"]
         :compiler {
-          :externs       ["react/externs/react.js"]
-          :output-to     "web/todo.min.js"
+          :main          datascript-todo
+          :output-to     "target/todo.js"
           :optimizations :advanced
           :pretty-print  false
+          :warnings      {:single-segment-namespace false}
         }}
   ]}
   
@@ -30,13 +28,15 @@
     :dev {
       :cljsbuild {
         :builds [
-          { :id "dev"
+          { :id "none"
             :source-paths  ["src"]
             :compiler {
-              :output-to     "dev/todo.js"
-              :output-dir    "dev/out"
+              :main          datascript-todo
+              :output-to     "target/todo.js"
+              :output-dir    "target/none"
               :optimizations :none
               :source-map    true
+              :warnings      {:single-segment-namespace false}
             }}
       ]}
     }

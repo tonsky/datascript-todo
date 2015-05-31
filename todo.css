@@ -1,9 +1,7 @@
 * { box-sizing: border-box; vertical-align: top; text-rendering: optimizelegibility; }
 tr, td, table, tbody { padding: 0; margin: 0; border-collapse: collapse; }
 
-@font-face { font-family: 'InputSansNarrow'; src: url('InputSansNarrow-Regular.ttf'); }
-
-html, input, textarea, button { font: 13px/20px 'InputSansNarrow', sans-serif; }
+html, input, textarea, button { font: 13px/20px 'Input Sans Narr', sans-serif; }
 html, body { width: 100%; height: 100%; margin: 0; padding: 0;  }
 body { background: linear-gradient(to bottom, hsl(185, 45%, 63%) 0%, hsl(185, 45%, 58%) 100%); background-attachment: fixed; }
 

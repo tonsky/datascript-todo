@@ -23,6 +23,9 @@
 (defn trim-head [xs n]
   (vec (drop (- (count xs) n) xs)))
 
+(defn index [xs]
+  (map vector xs (range)))
+
 (defn e-by-av [db a v]
   (-> (d/datoms db :avet a v) first :e))
 
@@ -46,14 +49,13 @@
        " " year))
 
 (defn month-start [month year]
-  (js/Date. (str year "-" month "-01")))
+  (js/Date. year (dec month) 1))
 
 (defn month-end [month year]
   (let [[month year] (if (< month 12)
                        [(inc month) year]
-                       [01 (inc year)])]
-    (-> (str year "-" month "-01 00:00:00")
-        js/Date.
+                       [1 (inc year)])]
+    (-> (js/Date. year (dec month) 1)
         .getTime
         dec
         js/Date.

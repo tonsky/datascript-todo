@@ -2,11 +2,10 @@
   (:require
     [clojure.set :as set]
     [clojure.string :as str]
-    [cljs.reader]
+     cljs.reader
     [datascript :as d]
-    [sablono.core]
+    [rum :include-macros true]
     [cognitect.transit :as transit]
-    [datascript-todo.react :as r :include-macros true]
     [datascript-todo.dom :as dom]
     [datascript-todo.util :as u])
   (:require-macros
@@ -24,9 +23,6 @@
   (reset! conn db)
   (render db)
   (persist db))
-
-;; Eventually will be replaced with `:find [?todo ...]` query form
-(defn q1s [q & ins] (->> (apply d/q q ins) (map first) set))
 
 ;; Entity with id=0 is used for storing auxilary view information
 ;; like filter value and selected group
@@ -51,7 +47,7 @@
 
 ;; Keyword filter
 
-(r/defc filter-pane [db]
+(rum/defc filter-pane [db]
   [:.filter-pane
     [:input.filter {:type "text"
                     :value (or (system-attr db :system/filter) "")
@@ -71,7 +67,7 @@
 ;; terms are passed as a collection to query,
 ;; each term futher interpreted with OR semantic
 (defn todos-by-filter [db terms]
-  (q1s '[:find ?e
+  (d/q '[:find [?e ...]
          :in $ % [?term ...]
          :where [?e :todo/text]
                 (match ?e ?term)]
@@ -83,7 +79,7 @@
 
 (defn filtered-db [db]
   (if-let [terms   (filter-terms db)]
-    (let[whitelist (todos-by-filter db terms)
+    (let[whitelist (set (todos-by-filter db terms))
          pred      (fn [db datom]
                      (or (not= "todo" (namespace (.-a datom)))
                          (contains? whitelist (.-e datom))))]
@@ -99,7 +95,7 @@
 ;; filtering by that attribute, keeping only todos that resulted
 ;; into default value
 (defmethod todos-by-group :inbox [db _ _]
-  (q1s '[:find ?todo
+  (d/q '[:find [?todo ...]
          :where [?todo :todo/text]
                 [(get-else $ ?todo :todo/project :none) ?project]
                 [(get-else $ ?todo :todo/due :none) ?due]
@@ -108,17 +104,17 @@
     db))
 
 (defmethod todos-by-group :completed [db _ _]
-  (q1s '[:find ?todo
+  (d/q '[:find [?todo ...]
          :where [?todo :todo/done true]]
     db))
 
 (defmethod todos-by-group :all [db _ _]
-  (q1s '[:find  ?todo
+  (d/q '[:find  [?todo ...]
          :where [?todo :todo/text]]
     db))
 
 (defmethod todos-by-group :project [db _ pid]
-  (q1s '[:find ?todo
+  (d/q '[:find [?todo ...]
          :in   $ ?pid
          :where [?todo :todo/project ?pid]]
        db pid))
@@ -126,21 +122,21 @@
 ;; Since todos do not store month directly, we pass in
 ;; month boundaries and then filter todos with <= predicate
 (defmethod todos-by-group :month [db _ [year month]]
-  (q1s '[:find ?todo
-         :in   $ [?from ?to]
+  (d/q '[:find [?todo ...]
+         :in   $ ?from ?to
          :where [?todo :todo/due ?due]
                 [(<= ?from ?due ?to)]]
-       db [(u/month-start month year) (u/month-end month year)]))
+       db (u/month-start month year) (u/month-end month year)))
 
-(r/defc group-item [db title group item]
+(rum/defc group-item [db title group item]
   ;; Joining DB with a collection
   (let [todos (todos-by-group db group item)
-        count (->> (d/q '[:find (count ?todo)
-                          :in $ [?todo ...]
-                          :where [$ ?todo :todo/done false]]
-                     db todos)
-                   ffirst)]
-    [:.group-item {:class (when (= [group item] (system-attr db :system/group :system/group-item))
+        count (d/q '[:find (count ?todo) .
+                     :in $ [?todo ...]
+                     :where [$ ?todo :todo/done false]]
+                   db todos)]
+    [:.group-item {:class (when (= [group item]
+                                   (system-attr db :system/group :system/group-item))
                             "group-item_selected")}
       [:span {:on-click (fn [_]
                           (set-system-attrs! :system/group group
@@ -149,19 +145,19 @@
       (when count
         [:span.group-item-count count])]))
 
-(r/defc plan-group [db]
+(rum/defc plan-group [db]
   [:.group
     [:.group-title "Plan"]
     ;; Here we’re calculating month inside a query via passed in function
-    (for [[[year month]] (->> (d/q '[:find ?month
-                                     :in   $ ?date->month
-                                     :where [?todo :todo/due ?date]
-                                            [(?date->month ?date) ?month]]
-                                   db u/date->month)
-                              sort)]
+    (for [[year month] (->> (d/q '[:find [?month ...]
+                                   :in   $ ?date->month
+                                   :where [?todo :todo/due ?date]
+                                          [(?date->month ?date) ?month]]
+                                 db u/date->month)
+                            sort)]
       (group-item db (u/format-month month year) :month [year month]))])
 
-(r/defc projects-group [db]
+(rum/defc projects-group [db]
   [:.group
     [:.group-title "Projects"]
     (for [[pid name] (->> (d/q '[:find ?pid ?project
@@ -171,15 +167,14 @@
                           (sort-by second))]
       (group-item db name :project pid))])
 
-(r/defc overview-pane [db]
+(rum/defc overview-pane [db]
   [:.overview-pane
     [:.group
       (group-item db "Inbox"     :inbox nil)
       (group-item db "Completed" :completed nil)
       (group-item db "All"       :all nil)]
     (plan-group db)
-    (projects-group db)
-   ])
+    (projects-group db)])
 
 ;; This transaction function swaps the value of :todo/done attribute.
 ;; Transaction funs are handy in situations when to decide what to do
@@ -192,7 +187,7 @@
 (defn toggle-todo [eid]
   (d/transact! conn [[:db.fn/call toggle-todo-tx eid]]))
 
-(r/defc todo-pane [db]
+(rum/defc todo-pane [db]
   [:.todo-pane
     (let [todos (let [[group item] (system-attr db :system/group :system/group-item)]
                   (todos-by-group db group item))]
@@ -244,7 +239,7 @@
       (d/transact! conn (concat project-tx [entity])))
     (clean-todo)))
 
-(r/defc add-view []
+(rum/defc add-view []
   [:form.add-view {:on-submit (fn [_] (add-todo) false)}
     [:input.add-text    {:type "text" :placeholder "New task"}]
     [:input.add-project {:type "text" :placeholder "Project"}]
@@ -252,25 +247,20 @@
     [:input.add-due     {:type "text" :placeholder "Due date"}]
     [:input.add-submit  {:type "submit" :value "Add task"}]])
 
-;; js identity comparison does not work here (why?),
-;; so we’re relying on max-tx when comparing databases
-(defn db-identical? [x y]
-  (== (.-max-tx x) (.-max-tx y)))
-
-(r/defc history-view [db]
+(rum/defc history-view [db]
   [:.history-view
     (for [state @history]
       [:.history-state 
-       { :class (when (db-identical? state db) "history-selected")
+       { :class (when (identical? state db) "history-selected")
          :on-click (fn [_] (reset-conn! state)) }])
-    (if-let [prev (u/find-prev @history #(db-identical? db %))]
-      [:button.history-btn {:on-click (fn [_] (reset-conn! prev))} "← undo"]
-      [:button.history-btn {:disabled true} "← undo"])
-    (if-let [next (u/find-next @history #(db-identical? db %))]
-      [:button.history-btn {:on-click (fn [_] (reset-conn! next))} "redo →"]
-      [:button.history-btn {:disabled true} "redo →"])])
+    (if-let [prev (u/find-prev @history #(identical? db %))]
+      [:button.history-btn {:on-click (fn [_] (reset-conn! prev))} "‹ undo"]
+      [:button.history-btn {:disabled true} "‹ undo"])
+    (if-let [next (u/find-next @history #(identical? db %))]
+      [:button.history-btn {:on-click (fn [_] (reset-conn! next))} "redo ›"]
+      [:button.history-btn {:disabled true} "redo ›"])])
 
-(r/defc canvas [db]
+(rum/defc canvas [db]
   [:.canvas
     [:.main-view
       (filter-pane db)
@@ -279,14 +269,13 @@
           (overview-pane db)
           (todo-pane db)))]
     (add-view)
-    (history-view db)    
-   ])
+    (history-view db)])
 
 (defn render
   ([] (render @conn))
   ([db]
     (profile "render"
-      (r/render (canvas db) (.-body js/document)))))
+      (rum/mount (canvas db) js/document.body))))
 
 ;; re-render on every DB change
 (d/listen! conn :render
@@ -311,7 +300,7 @@
       (when (and db-before db-after)
         (swap! history (fn [h]
           (-> h
-            (u/drop-tail #(db-identical? % db-before))
+            (u/drop-tail #(identical? % db-before))
             (conj db-after)
             (u/trim-head history-limit))))))))
 
@@ -320,17 +309,19 @@
 (deftype DatomHandler []
   Object
   (tag [_ _] "datascript/Datom")
-  (rep [_ d] #js [(.-e d) (.-a d) (.-v d) (.-tx d) (.-added d)])
+  (rep [_ d] #js [(.-e d) (.-a d) (.-v d) (.-tx d)])
   (stringRep [_ _] nil))
 
 (def transit-writer
-  (transit/writer :json { :handlers
-    { datascript.core/Datom (DatomHandler.)
-      datascript.btset/BTSetIter (transit/VectorHandler.) }}))
+  (transit/writer :json
+    { :handlers
+      { datascript.core/Datom (DatomHandler.)
+        datascript.btset/BTSetIter (transit/VectorHandler.) }}))
 
 (def transit-reader
-  (transit/reader :json { :handlers
-    { "datascript/Datom" d/datom-from-reader }}))
+  (transit/reader :json
+    { :handlers
+      { "datascript/Datom" (fn [[e a v tx]] (d/datom e a v tx)) }}))
 
 (defn db->string [db]
   (profile "db serialization"
@@ -349,7 +340,7 @@
   (fn [tx-report] ;; FIXME do not notify with nil as db-report
                   ;; FIXME do not notify if tx-data is empty
     (when-let [db (:db-after tx-report)]
-      (persist db))))
+      (js/setTimeout #(persist db) 0))))
 
 ;; restoring once persisted DB on page load
 (if-let [stored (js/localStorage.getItem "datascript-todo/db")]
@@ -362,3 +353,5 @@
 
 ;; for interactive re-evaluation
 (render)
+
+
