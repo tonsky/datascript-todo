@@ -1,14 +1,14 @@
 (defproject datascript-todo "0.1.0"
   :dependencies [
-    [org.clojure/clojure "1.7.0-RC1"]
-    [org.clojure/clojurescript "0.0-3297"]
-    [datascript "0.11.2"]
-    [rum "0.2.6"]
-    [com.cognitect/transit-cljs "0.8.215"]
+    [org.clojure/clojure "1.7.0"]
+    [org.clojure/clojurescript "1.7.122"]
+    [datascript "0.12.1"]
+    [datascript-transit "0.1.0"]
+    [rum "0.3.0"]
   ]
 
   :plugins [
-    [lein-cljsbuild "1.0.6"]
+    [lein-cljsbuild "1.1.0"]
   ]
 
   :cljsbuild { 

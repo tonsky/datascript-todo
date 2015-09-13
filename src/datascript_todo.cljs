@@ -2,10 +2,9 @@
   (:require
     [clojure.set :as set]
     [clojure.string :as str]
-     cljs.reader
     [datascript :as d]
-    [rum :include-macros true]
-    [cognitect.transit :as transit]
+    [rum]
+    [datascript.transit :as dt]
     [datascript-todo.dom :as dom]
     [datascript-todo.util :as u])
   (:require-macros
@@ -14,7 +13,9 @@
 (enable-console-print!)
 
 (def schema {:todo/tags    {:db/cardinality :db.cardinality/many}
-             :todo/project {:db/valueType :db.type/ref}})
+             :todo/project {:db/valueType :db.type/ref}
+             :todo/done    {:db/index true}
+             :todo/due     {:db/index true}})
 (defonce conn (d/create-conn schema))
 
 (declare render persist)
@@ -81,8 +82,8 @@
   (if-let [terms   (filter-terms db)]
     (let[whitelist (set (todos-by-filter db terms))
          pred      (fn [db datom]
-                     (or (not= "todo" (namespace (.-a datom)))
-                         (contains? whitelist (.-e datom))))]
+                     (or (not= "todo" (namespace (:a datom)))
+                         (contains? whitelist (:e datom))))]
       (d/filter db pred))
     db))
 
@@ -287,8 +288,8 @@
   (fn [tx-report]
     (let [tx-id  (get-in tx-report [:tempids :db/current-tx])
           datoms (:tx-data tx-report)
-          datom->str (fn [d] (str (if (.-added d) "+" "−")
-                               "[" (.-e d) " " (.-a d) " " (pr-str (.-v d)) "]"))]
+          datom->str (fn [d] (str (if (:added d) "+" "−")
+                               "[" (:e d) " " (:a d) " " (pr-str (:v d)) "]"))]
       (println
         (str/join "\n" (concat [(str "tx " tx-id ":")] (map datom->str datoms)))))))
 
@@ -306,35 +307,17 @@
 
 ;; transit serialization
 
-(deftype DatomHandler []
-  Object
-  (tag [_ _] "datascript/Datom")
-  (rep [_ d] #js [(.-e d) (.-a d) (.-v d) (.-tx d)])
-  (stringRep [_ _] nil))
-
-(def transit-writer
-  (transit/writer :json
-    { :handlers
-      { datascript.core/Datom (DatomHandler.)
-        datascript.btset/BTSetIter (transit/VectorHandler.) }}))
-
-(def transit-reader
-  (transit/reader :json
-    { :handlers
-      { "datascript/Datom" (fn [[e a v tx]] (d/datom e a v tx)) }}))
-
 (defn db->string [db]
   (profile "db serialization"
-    (transit/write transit-writer (d/datoms db :eavt))))
+    (dt/write-transit-str db)))
 
 (defn string->db [s]
   (profile "db deserialization"
-    (let [datoms (transit/read transit-reader s)]
-      (d/init-db datoms schema))))
+    (dt/read-transit-str s)))
 
 ;; persisting DB between page reloads
 (defn persist [db]
-  (js/localStorage.setItem "datascript-todo/db" (db->string db)))
+  (js/localStorage.setItem "datascript-todo/DB" (db->string db)))
 
 (d/listen! conn :persistence
   (fn [tx-report] ;; FIXME do not notify with nil as db-report
@@ -343,10 +326,13 @@
       (js/setTimeout #(persist db) 0))))
 
 ;; restoring once persisted DB on page load
-(if-let [stored (js/localStorage.getItem "datascript-todo/db")]
-  (do
-    (reset-conn! (string->db stored))
-    (swap! history conj @conn))
+(or
+  (when-let [stored (js/localStorage.getItem "datascript-todo/DB")]
+    (let [stored-db (string->db stored)]
+      (when (= (:schema stored-db) schema) ;; check for code update
+        (reset-conn! stored-db)
+        (swap! history conj @conn)
+        true)))
   (d/transact! conn u/fixtures))
 
 #_(js/localStorage.clear)
