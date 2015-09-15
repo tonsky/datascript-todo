@@ -1,6 +1,6 @@
 # DataScript ToDo Sample Application
 
 ```clj
-lein cljsbuild auto dev &
+lein cljsbuild auto none &
 open index.html
 ```
