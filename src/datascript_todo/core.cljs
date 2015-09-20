@@ -1,14 +1,14 @@
-(ns datascript-todo
+(ns datascript-todo.core
   (:require
     [clojure.set :as set]
     [clojure.string :as str]
-    [datascript :as d]
-    [rum]
+    [datascript.core :as d]
+    [rum.core :as rum]
     [datascript.transit :as dt]
     [datascript-todo.dom :as dom]
     [datascript-todo.util :as u])
   (:require-macros
-    [datascript-todo :refer [profile]]))
+    [datascript-todo.core :refer [profile]]))
 
 (enable-console-print!)
 

@@ -1,6 +1,6 @@
 (ns datascript-todo.util
   (:require
-    [datascript :as d]))
+    [datascript.core :as d]))
 
 (defn remove-vals [f m]
   (reduce-kv (fn [m k v] (if (f v) m (assoc m k v))) (empty m) m))

@@ -1,4 +1,4 @@
-(ns datascript-todo)
+(ns datascript-todo.core)
 
 (defmacro profile [k & body]
   `(let [k# ~k]
