@@ -18,3 +18,9 @@ Build from the command line before using LightTable.
 
 It's important to use `none` to invoke the correct cljsbuild identifier,
 otherwise advanced optimizations will prevent LightTable from finding `goog`
+
+### License
+
+MIT License
+
+Copyright © 2015 Nikita Prokopov
